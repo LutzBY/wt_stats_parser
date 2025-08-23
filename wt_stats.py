@@ -174,8 +174,9 @@ class WTApp:
 
             # Обновляем заголовок
             mission = data['mission']
+            result = data['result']
             self.last_mission_label.config(
-            text=f"{mission}",
+            text=f"{result}: {mission}",
             fg="black"
             ) # Подставляем новый текст
 
