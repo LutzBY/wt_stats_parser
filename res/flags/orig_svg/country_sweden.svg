@@ -1,0 +1,18 @@
+<svg id="Sweden" xmlns="http://www.w3.org/2000/svg" width="100" height="68" viewBox="0 16 100 68">
+<defs>
+    <style>
+      .cls-1 {
+        fill: #0065a4;
+      }
+
+      .cls-2 {
+        fill: #ffde00;
+        fill-rule: evenodd;
+      }
+    </style>
+  </defs>
+  <g id="sweden-2" data-name="sweden">
+    <rect class="cls-1" y="16" width="100" height="68"/>
+    <path class="cls-2" d="M100,57H45V84H31V57H0V43H31V16H45V43h55V57Z"/>
+  </g>
+</svg>

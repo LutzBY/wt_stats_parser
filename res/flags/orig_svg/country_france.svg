@@ -1,0 +1,22 @@
+<svg id="France" xmlns="http://www.w3.org/2000/svg" width="100" height="68" viewBox="0 16 100 68">
+<defs>
+    <style>
+      .cls-1 {
+        fill: #002395;
+      }
+
+      .cls-2 {
+        fill: #ed2939;
+      }
+
+      .cls-3 {
+        fill: #fff;
+      }
+    </style>
+  </defs>
+  <g id="country_france">
+    <rect class="cls-1" y="16" width="34" height="68"/>
+    <rect class="cls-2" x="66" y="16" width="34" height="68"/>
+    <rect class="cls-3" x="32" y="16" width="36" height="68"/>
+  </g>
+</svg>

@@ -1,0 +1,22 @@
+<svg id="Italy_modern" xmlns="http://www.w3.org/2000/svg" width="100" height="68" viewBox="0 16 100 68">
+<defs>
+    <style>
+      .cls-1 {
+        fill: #f1f2f1;
+      }
+
+      .cls-2 {
+        fill: #009246;
+      }
+
+      .cls-3 {
+        fill: #ce2b37;
+      }
+    </style>
+  </defs>
+  <g id="country_italy_modern">
+    <rect class="cls-1" y="16" width="100" height="68"/>
+    <rect class="cls-2" y="16" width="33" height="68"/>
+    <rect class="cls-3" x="67" y="16" width="33" height="68"/>
+  </g>
+</svg>

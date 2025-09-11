@@ -10,6 +10,7 @@ import keyboard
 import pygetwindow as gw
 import time
 import json
+from PIL import Image, ImageTk
 
 # 0 Вводные
 # 0.1 Куда сохранять эксель
@@ -18,6 +19,8 @@ file_path = r'C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\data.xl
 bd_path = r"C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\vehicles_rus.json" # 
 # 0.3 Параметры расположения окна tkinter
 tkinter_geometry = (400, 350, 1500, 675) # На работе - (400, 350, 1500, 675) дома - (400, 350, 4065, 1000) # размер - ш, в, положение - ш, в (3520 + 1080 )
+# 0.4 Где лежат флажки
+flags_loc = r'C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\flags'
 
 # 1 Функция парсинга результатов
 def parse_battle_stats():
@@ -177,6 +180,19 @@ class BattleAnalyzer:
             '🇸🇪': 'Швеция',
             '🇵🇱': 'Польша'
         } # таблица замен для символов (вроде не нужно)
+
+        self.COUNTRY_TO_FLAG_FILE = {
+            'Usa': 'country_usa',
+            'Germany': 'country_germany',
+            'Ussr': 'country_ussr',
+            'Britain': 'country_britain',
+            'Japan': 'country_japan',
+            'China': 'country_china',
+            'Italy': 'country_italy',
+            'France': 'country_france',
+            'Sweden': 'country_sweden',
+            'Israel': 'country_israel'
+        } # таблица соответствия страна из базы - флаг
 
         self.HTML_REPLACEMENTS = {
             '&#039;': "'",  # апостроф
@@ -360,7 +376,30 @@ class BattleAnalyzer:
         battle_type = self.classify_battle(info_list)
         
         return battle_type, max_br, br_country
-
+    
+    # 3.8 Получение флага на основе текста нации 
+    def load_flag(self, flag_name, flag_size):
+        """
+        Загружает флаг из папки res/flags и возвращает PhotoImage.
+        :param flag_name: имя файла без расширения (например, 'USSR')
+        :param size: размер (ширина, высота) в пикселях
+        :return: ImageTk.PhotoImage
+        """ 
+        path = f'{flags_loc}\\{flag_name}.png'
+            
+        # Конвертируем SVG → PNG (через PIL)
+        try:
+            # Открываем SVG как изображение
+            img = Image.open(path)
+            # Изменяем размер
+            img = img.resize(flag_size, Image.Resampling.LANCZOS)
+            # Преобразуем в PhotoImage
+            photo = ImageTk.PhotoImage(img)
+            return photo
+        except Exception as e:
+            print(f"❌ Ошибка при загрузке {path}: {e}")
+            return None
+        
 # 4 Окно Tkinter
 class WTApp:
     def __init__(self, root, tkinter_geometry):
@@ -375,7 +414,7 @@ class WTApp:
         self.last_mission_label = tk.Label(
             root,
             text="Последняя миссия: неизвестно",
-            font=("Arial", 9),
+            font=("Segoe UI", 9),
             fg="gray",
             wraplength=330,
             anchor="w",
@@ -418,12 +457,21 @@ class WTApp:
         if data:
             print("\n📋 Извлечено:")
 
-            # Обновляем заголовок
+            # Обновляем заголовок информацией из миссии
             mission = data['mission']
             result = data['result']
+            br_country = data['br_country']
+            # и получаем флаг из словаря
+            flag_file = analyzer.COUNTRY_TO_FLAG_FILE.get(br_country, None)
+            if flag_file:
+                flag_image = analyzer.load_flag(flag_file, flag_size=(20, 14))
+            else:
+                flag_image = ''
+            # Меняем заголовок
             self.last_mission_label.config(
-            text=f"{result}: {mission}",
-            fg="black"
+                text=f"{result}: {mission}",
+                image=flag_image, compound='left',
+                fg="black"
             ) # Подставляем новый текст
 
             # Выводим распаршенные строки
