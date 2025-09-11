@@ -14,13 +14,13 @@ from PIL import Image, ImageTk
 
 # 0 Вводные
 # 0.1 Куда сохранять эксель
-file_path = r'C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\data.xlsx' # r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" # r"D:\data.xlsx"
+file_path =  r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" # r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" # r"D:\data.xlsx"
 # 0.2 Где лежит база техники
-bd_path = r"C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\vehicles_rus.json" # 
+bd_path = r"E:\PY\wt_stats_parser\res\vehicles_rus.json" # r"E:\PY\wt_stats_parser\res\vehicles_rus.json" # "E:\PY\wt_stats_parser\res\vehicles_rus.json" "C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\vehicles_rus.json"
 # 0.3 Параметры расположения окна tkinter
-tkinter_geometry = (400, 350, 1500, 675) # На работе - (400, 350, 1500, 675) дома - (400, 350, 4065, 1000) # размер - ш, в, положение - ш, в (3520 + 1080 )
+tkinter_geometry = (400, 350, 4065, 1000) # На работе - (400, 350, 1500, 675) дома - (400, 350, 4065, 1000) # размер - ш, в, положение - ш, в (3520 + 1080 )
 # 0.4 Где лежат флажки
-flags_loc = r'C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\flags'
+flags_loc = r"E:\PY\wt_stats_parser\res\flags" #r'C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\flags'
 
 # 1 Функция парсинга результатов
 def parse_battle_stats():
@@ -466,13 +466,16 @@ class WTApp:
             if flag_file:
                 flag_image = analyzer.load_flag(flag_file, flag_size=(20, 14))
             else:
-                flag_image = ''
+                flag_image = None
+
             # Меняем заголовок
             self.last_mission_label.config(
                 text=f"{result}: {mission}",
-                image=flag_image, compound='left',
+                image=flag_image, 
+                compound='left',
                 fg="black"
             ) # Подставляем новый текст
+            self.last_mission_label.image = flag_image # сохраняем флажок чтобы ткинтер его не удалил после выполнения
 
             # Выводим распаршенные строки
             for k, v in data.items():
