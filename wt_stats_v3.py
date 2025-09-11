@@ -1,0 +1,493 @@
+import tkinter as tk
+from tkinter import scrolledtext
+import pyperclip
+import re
+import pandas as pd
+import sys
+from datetime import timedelta
+from threading import Thread
+import keyboard
+import pygetwindow as gw
+import time
+import json
+
+# 0 Вводные
+# 0.1 Куда сохранять эксель
+file_path = r'C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\data.xlsx' # r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" # r"D:\data.xlsx"
+# 0.2 Где лежит база техники
+bd_path = r"C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\vehicles_rus.json" # 
+# 0.3 Параметры расположения окна tkinter
+tkinter_geometry = (400, 350, 1500, 675) # На работе - (400, 350, 1500, 675) дома - (400, 350, 4065, 1000) # размер - ш, в, положение - ш, в (3520 + 1080 )
+
+# 1 Функция парсинга результатов
+def parse_battle_stats():
+    imported_game_log = pyperclip.paste()
+    if not imported_game_log.strip():
+        print("❌ Буфер обмена пуст. Скопируй статистику боя и запусти скрипт снова.")
+        return None
+
+    # --- Результат: Победа / Поражение ---
+    result_match = re.search(r'(Победа|Поражение) в миссии', imported_game_log)
+    result = result_match.group(1) if result_match else "Неизвестно"
+
+    # --- Название миссии ---
+    mission_match = re.search(r'миссии\s+"([^"]+)"', imported_game_log)
+    mission = mission_match.group(1) if mission_match else "Неизвестно"
+
+    # --- Итого: СЛ, СОИ (FRP), ОИ (RP) — только последнее вхождение ---
+    total_matches = re.findall(r'Итого:\s*(\d+)\s*СЛ,\s*(\d+)\s*СОИ,\s*(\d+)\s*ОИ', imported_game_log)
+    if not total_matches:
+        print("❌ Не удалось найти ни одного вхождения 'Итого'.")
+        return None
+
+    # Берём ПОСЛЕДНЕЕ вхождение (финальные итоги)
+    last_match = total_matches[-1]
+    total_sl = int(last_match[0])   # Silver Lions
+    total_frp = int(last_match[1])  # Free Research Points
+    total_rp = int(last_match[2])   # Research Points
+
+    # --- Очки миссии ---
+    mission_points = re.findall(r'(\d+)\s*очк(?:о|а|ов)\s*миссии', imported_game_log)
+    total_mission_points = sum(int(x) for x in mission_points)
+
+    # --- Сессия ---
+    session_match = re.search(r'Сессия:\s*([a-f0-9]+)', imported_game_log)
+    session_id = session_match.group(1) if session_match else None
+    if not session_id:
+        print("❌ Не удалось найти session_id.")
+        return None
+
+    # --- Активность (%) ---
+    activity_match = re.search(r'Активность:\s*(\d+)%', imported_game_log)
+    activity_percent = int(activity_match.group(1)) if activity_match else None
+
+    # --- Использованная техника ---
+    vehicles = set()
+
+    # Паттерн 1: "Время активности" — ищем текст до "Цифры + (ПА)"
+    pattern_active = r'^\s*(.+?)\s+\d+\s*\+\s*$$ПА$$'
+    # Паттерн 2: "Время игры" — ищем текст до "95% ... 4:51"
+    pattern_game = r'^\s*(.+?)\s+\d+%.*?\d+:\d+'
+
+    active_time_matches = re.findall(pattern_active, imported_game_log, re.MULTILINE)
+    game_time_matches = re.findall(pattern_game, imported_game_log, re.MULTILINE)
+    
+    all_vehicles = active_time_matches + game_time_matches
+
+    for v in all_vehicles:
+        cleaned = re.sub(r'\s+', ' ', v.strip())
+        # Исключаем ложные срабатывания (например, "Заработано", "Итого")
+        if cleaned and not re.match(r'^[0-9\[\]"]', cleaned) and len(cleaned) > 1:
+            vehicles.add(cleaned)
+
+    vehicles = ", ".join(sorted(vehicles)) if vehicles else "Неизвестно"
+
+    # --- Запуск анализатора по строке vehicles ---
+    battle_type, max_br, br_country = analyzer.analyze_battle(vehicles)
+
+    # --- Время миссии ---
+    mission_time_match = re.search(r'Время игры\s*(\d+:\d+)', imported_game_log)
+    mission_time = mission_time_match.group(1) if mission_time_match else "Неизвестно"
+    minutes, seconds = map(int, mission_time.split(':'))
+    mission_time = timedelta(minutes=minutes, seconds=seconds)
+
+    return {
+        'session_id': session_id,
+        'vehicles': vehicles,
+        'total_sl': total_sl,
+        'total_frp': total_frp,
+        'total_rp': total_rp,
+        'total_mission_points': total_mission_points,
+        'result': result,
+        'mission': mission,
+        'activity_percent': activity_percent,
+        'mission_time': mission_time,
+        'battle_type': battle_type,
+        'max_br': max_br,
+        'br_country': br_country
+    }
+
+# 2 Функция сохранения в эксель
+def save_to_excel(data, file_path):
+    
+    columns = [
+        'session_id', 'vehicles', 'total_sl', 'total_frp', 'total_rp',
+        'total_mission_points', 'result', 'mission', 'activity_percent', 
+        'mission_time', 'battle_type', 'max_br', 'br_country'
+    ]
+
+    try:
+        df = pd.read_excel(file_path, engine='openpyxl')
+    except (FileNotFoundError, ValueError):
+        df = pd.DataFrame(columns=columns)
+
+    # Удаляем строку с таким session_id, если есть
+    df = df[df['session_id'] != data['session_id']]
+
+    # Добавляем новую
+    new_row = pd.DataFrame([data], columns=columns)
+    df = pd.concat([df, new_row], ignore_index=True)
+
+    # Сохраняем
+    df.to_excel(file_path, index=False, engine='openpyxl')
+    print(f"\n ✅ Обновлено: {data['session_id']}")
+
+# 3 Работа с БД бр-ов и видов техники, возврат страны, бр и вида боя
+class BattleAnalyzer:
+    def __init__(self, bd_path):
+        """
+        Загружает и подготавливает базу техники.
+        :param bd_path: путь к vehicles_rus.json
+        """
+
+        # 3.1 Таблицы замен
+        self.RB_TO_BR = {
+            0: 1.0, 1: 1.3, 2: 1.7, 3: 2.0, 4: 2.3, 5: 2.7, 6: 3.0, 7: 3.3,
+            8: 3.7, 9: 4.0, 10: 4.3, 11: 4.7, 12: 5.0, 13: 5.3, 14: 5.7,
+            15: 6.0, 16: 6.3, 17: 6.7, 18: 7.0, 19: 7.3, 20: 7.7, 21: 8.0,
+            22: 8.3, 23: 8.7, 24: 9.0, 25: 9.3, 26: 9.7, 27: 10.0,
+            28: 10.3, 29: 10.7, 30: 11.0, 31: 11.3, 32: 11.7, 33: 12.0,
+            34: 12.3, 35: 12.7, 36: 13.0, 37: 13.3, 38: 13.7, 39: 14.0, 40: 14.3
+        } # конвертация rb → BR
+
+        self.COUNTRY_TO_RUSSIAN = {
+            'ussr': 'СССР',
+            'germany': 'Германия',
+            'usa': 'США',
+            'britain': 'Великобритания',
+            'france': 'Франция',
+            'japan': 'Япония',
+            'china': 'Китай',
+            'czech': 'Чехословакия',
+            'sweden': 'Швеция',
+            'poland': 'Польша',
+            'italy': 'Италия',
+            'israel': 'Израиль'
+        } # таблица замен для стран
+
+        self.COUNTRY_SYMBOLS = {
+            '🇺🇸': 'США',
+            '🇩🇪': 'Германия',
+            '🇬🇧': 'Великобритания',
+            '🇫🇷': 'Франция',
+            '🇯🇵': 'Япония',
+            '🇨🇳': 'Китай',
+            '🇮🇹': 'Италия',
+            '🇨🇿': 'Чехословакия',
+            '🇸🇪': 'Швеция',
+            '🇵🇱': 'Польша'
+        } # таблица замен для символов (вроде не нужно)
+
+        self.HTML_REPLACEMENTS = {
+            '&#039;': "'",  # апостроф
+            '&amp;': '&',   # &
+            '<': '<',    # <
+            '>': '>',     # >
+            '&quot;': '"' # ""
+        } # таблица замен для HTML-символов
+
+        self.SHITTY_SYMBOLS = [
+            '▃', 
+            '␗', 
+            '▄',
+            '▀', 
+            '◔', 
+            '▅',
+            "▂", # ▂МК-II "Матильда"
+            '◄', # ◄CL-13A Mk.5
+            '◗', # ◗Fokker D.XXI
+            '◡', # ◡Kfir C.10
+            '◊', # ◊Lim-5P
+            '◌', # ◌Mirage IIIS C.70
+            '', # P-51D-20-NA
+            '◘' # ◘SB-25J
+            # '␙' = кубок,␠ = лапка
+        ] # таблица значков
+
+        # 3.2 Загрузка базы и очистка ---
+
+        with open(bd_path, encoding='UTF-8') as file:
+            vehicles_rus_raw = json.load(file)
+
+        self.vehicles_rus = []
+        for item in vehicles_rus_raw:
+            if len(item) < 8:
+                continue
+            # Копируем, чтобы не портить оригинал
+            clean_item = item.copy()
+            original_name = item[1]
+            clean_name = self.normalize_name(original_name, item[2])
+            clean_item[1] = clean_name  # заменяем на чистое имя
+
+            self.vehicles_rus.append(clean_item)
+        
+    # 3.3 - Нормализация имен - заменяет HTML-символы, заменяет символы стран на текст
+    def normalize_name(self, name, country_operator=None): 
+
+        if not isinstance(name, str):
+            name = str(name)
+
+        # 1. Заменяем HTML-символы
+        for html, text in self.HTML_REPLACEMENTS.items():
+            name = name.replace(html, text)
+
+        # 2. Заменяем эмодзи-флаги на текст (🇺🇸 → США)
+        for symbol, country in self.COUNTRY_SYMBOLS.items():
+            name = name.replace(symbol, country)
+
+        # 3. Обработка ␗Имя → Имя (Страна)
+        if any(symbol in name for symbol in self.SHITTY_SYMBOLS) and country_operator:
+            clean_name = name
+            for symbol in self.SHITTY_SYMBOLS:
+                clean_name = clean_name.replace(symbol, '')
+            clean_name = clean_name.strip()
+            country_rus = self.COUNTRY_TO_RUSSIAN.get(country_operator.lower())
+            if country_rus:
+                name = f"{clean_name}({country_rus})"
+            else:
+                name = clean_name  # на всякий случай
+
+        # 4. Финальная очистка
+        name = re.sub(r'\s+', ' ', name.strip())
+
+        return name
+    
+    # 3.4 Получить данные по одной машине ---
+    def get_vehicle_info(self, vehicle_name, vehicles_db):
+        # Нормализуем входное имя
+        norm_query = self.normalize_name(vehicle_name)
+
+        # Ищем по нормализованному имени
+        for item in vehicles_db:
+            if len(item) < 8:
+                continue
+            display_name = item[1]
+            norm_db_name = self.normalize_name(display_name, item[2])
+
+            if norm_db_name == norm_query:
+                br_rb = item[4]['rb']
+                real_br = self.RB_TO_BR.get(br_rb, None)
+                type_rus = item[7][0][1] if item[7] and item[7][0] else "Неизвестно"
+                return {
+                    'type': type_rus,
+                    'br': real_br,
+                    'country': item[2].title()
+                }
+        return None
+    
+    # 3.5 Получить имя, тип, бр и страну по всей строке техники ---
+    def get_vehicles_info_list(self, vehicles_str, vehicles_db):
+        names = [v.strip() for v in vehicles_str.split(',') if v.strip()]
+        result = []
+        for name in names:
+            info = self.get_vehicle_info(name, vehicles_db)
+            if info:
+                result.append({
+                    'name': name,
+                    'type': info['type'],
+                    'br': info['br'],
+                    'country': info['country']
+                })
+            else:
+                result.append({
+                    'name': name,
+                    'type': 'Неизвестно',
+                    'br': None,
+                    'country': 'Неизвестно'
+                })
+        return result
+    
+    # 3.6 определить тип боя ---
+    def classify_battle(self, info_list):
+        if not info_list:
+            return "Unknown"
+
+        AIR_TYPES = {'Истребитель', 'Бомбардировщик', 'Ударный самолёт'}
+        HELICOPTER_TYPES = {'Ударный вертолёт', 'Многоцелевой вертолёт'}
+        GROUND_TYPES = {'Средний танк', 'Лёгкий танк', 'Тяжёлый танк', 'САУ', 'ЗСУ'}
+        NON_AIR_TYPES = GROUND_TYPES | HELICOPTER_TYPES
+        try:
+            types = {v['type'] for v in info_list}
+            countries = {v['country'] for v in info_list}
+            max_br = max(v['br'] for v in info_list if v['br'] is not None)
+            num_vehicles = len(info_list)
+        except ValueError:
+            return "Unknown"
+
+        # Air AB: только самолёты, 2+, одна страна
+        if types.issubset(AIR_TYPES) and num_vehicles >= 2 and len(countries) == 1:
+            return "Air AB"
+
+        # Air RB: один самолёт
+        if types.issubset(AIR_TYPES) and num_vehicles == 1:
+            return "Air RB"
+
+        #### !!!!!!!!!Изменить
+        # Tank RB: есть наземная техника, не Air, BR < 10.7 или мало машин
+        if types & NON_AIR_TYPES and not types.issubset(AIR_TYPES):
+            if max_br < 10.7 or num_vehicles <= 2:
+                return "Tank RB"
+
+        #### !!!!!!!!!Изменить
+        # Tank SB: наземная техника, высокий BR
+        if types & GROUND_TYPES and max_br >= 10.7 and num_vehicles <= 2:
+            return "Tank SB"
+
+        return "Unknown"
+    
+    # 3.7 Основная функция формирования battle_type, max_br, br_country
+    def analyze_battle(self, vehicles_str):
+        """
+        Основной метод
+        Принимает строку с техникой (через запятую), возвращает:
+            (тип_боя, максимальный_BR, страна_с_макс_BR)
+        """
+        info_list = self.get_vehicles_info_list(vehicles_str, self.vehicles_rus)
+        if not info_list:
+            return "Unknown", None, "Неизвестно"
+
+        # Находим запись с максимальным BR
+        valid_vehicles = [v for v in info_list if v['br'] is not None]
+        if not valid_vehicles:
+            highest = info_list[0]
+            max_br = None
+            br_country = highest['country']
+        else:
+            highest = max(valid_vehicles, key=lambda x: x['br'])
+            max_br = highest['br']
+            br_country = highest['country']
+
+        battle_type = self.classify_battle(info_list)
+        
+        return battle_type, max_br, br_country
+
+# 4 Окно Tkinter
+class WTApp:
+    def __init__(self, root, tkinter_geometry):
+        self.root = root
+        self.root.title("WT Parser")
+        root.geometry('%dx%d+%d+%d' % (tkinter_geometry))
+        self.root.resizable(True, True)
+        self.root.attributes('-topmost', True) # поверх
+        self.root.attributes('-alpha', 0.75) # прозрачность
+        
+        # Метка: последняя миссия
+        self.last_mission_label = tk.Label(
+            root,
+            text="Последняя миссия: неизвестно",
+            font=("Arial", 9),
+            fg="gray",
+            wraplength=330,
+            anchor="w",
+            justify="left"
+        )
+        self.last_mission_label.pack(pady=(10, 5), padx=10, fill='x')
+
+        # Кнопка
+        self.button = tk.Button(
+            root,
+            text="📝 Записать",
+            font=("Arial", 12),
+            command=self.on_button_click
+        )
+        self.button.pack(pady=10)
+
+        # Текстовое поле с выводом
+        self.text_area = scrolledtext.ScrolledText(
+            root,
+            wrap=tk.WORD,
+            font=("Consolas", 10),
+            state='disabled',
+            bg="white",
+            fg="black",
+            padx=10,
+            pady=10
+        )
+        self.text_area.pack(expand=True, fill='both', padx=10, pady=5)
+
+        # Перенаправление print в текстовое поле
+        sys.stdout = TextRedirector(self.text_area)
+
+    def on_button_click(self):
+        self.text_area.configure(state='normal')
+        self.text_area.delete(1.0, tk.END)
+        self.text_area.configure(state='disabled')
+        print("🔄 Обработка буфера обмена...")
+        
+        data = parse_battle_stats()
+        if data:
+            print("\n📋 Извлечено:")
+
+            # Обновляем заголовок
+            mission = data['mission']
+            result = data['result']
+            self.last_mission_label.config(
+            text=f"{result}: {mission}",
+            fg="black"
+            ) # Подставляем новый текст
+
+            # Выводим распаршенные строки
+            for k, v in data.items():
+                print(f"\n{k}: {v}")
+            
+            # Вызываем запись в эксель
+            save_to_excel(data, file_path)
+
+        else:
+            print("❌ Обработка не удалась.")
+
+# 5 Забираем текст из print() для размещения его в окне ткинтер
+class TextRedirector:
+    def __init__(self, widget):
+        self.widget = widget
+
+    def write(self, text):
+        if text.strip():  # чтобы не вставлять пустые строки
+            self.widget.configure(state='normal')
+            self.widget.insert(tk.END, text)
+            self.widget.see(tk.END)
+            self.widget.configure(state='disabled')
+            self.widget.update_idletasks()  # обновление интерфейса
+
+    def flush(self):
+        pass  # требуется для совместимости с stdout
+
+# 6 Листенер для проверки запускать ли логику парсера - Проверяет: нажат ли Ctrl+C и активно ли окно War Thunder.
+def start_global_listener(app_instance):
+    def is_wt_active():
+        try:
+            w = gw.getActiveWindow()
+            if not w:
+                return False
+            title = w.title.lower()
+            keywords = ['war thunder', 'wt', 'aces']
+            return any(kw in title for kw in keywords)
+        except:
+            return False
+
+    print("🟢 Перехват Ctrl+C активирован...")
+
+    while True:
+        # Проверяем, что оба нажаты
+        if keyboard.is_pressed('ctrl') and keyboard.is_pressed('c'):
+            if is_wt_active():
+                print("\n✅ Ctrl+C в War Thunder — запускаем парсинг...")
+                time.sleep(0.4)
+                # Имитируем нажатие кнопки
+                app_instance.on_button_click()
+                # Ждём, пока клавиши отпущены
+                while keyboard.is_pressed('c'):
+                    time.sleep(0.1)
+        time.sleep(0.1)  # не грузим CPU
+
+# 7 === ЗАПУСК ===
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = WTApp(root, tkinter_geometry)
+    analyzer = BattleAnalyzer(bd_path=bd_path)
+
+    # Запускаем перехват в фоне, передаём экземпляр app
+    listener_thread = Thread(target=start_global_listener, args=(app,), daemon=True)
+    listener_thread.start()
+
+    root.mainloop()
