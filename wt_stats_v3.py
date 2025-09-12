@@ -12,15 +12,18 @@ import time
 import json
 from PIL import Image, ImageTk
 
+import getpass # для определения текущего пользователя позже убрать
+env = getpass.getuser()
+
 # 0 Вводные
 # 0.1 Куда сохранять эксель
-file_path =  r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" # r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" # r"D:\data.xlsx"
+file_path = r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" if env == 'LutzBY' else r"D:\data.xlsx"
 # 0.2 Где лежит база техники
-bd_path = r"E:\PY\wt_stats_parser\res\vehicles_rus.json" # r"E:\PY\wt_stats_parser\res\vehicles_rus.json" # "E:\PY\wt_stats_parser\res\vehicles_rus.json" "C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\vehicles_rus.json"
+bd_path = r"E:\PY\wt_stats_parser\res\vehicles_rus.json" if env == 'LutzBY' else r"C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\vehicles_rus.json"
 # 0.3 Параметры расположения окна tkinter
-tkinter_geometry = (400, 350, 4065, 1000) # На работе - (400, 350, 1500, 675) дома - (400, 350, 4065, 1000) # размер - ш, в, положение - ш, в (3520 + 1080 )
+tkinter_geometry = (400, 350, 4065, 1000) if env == 'LutzBY' else (400, 350, 1500, 675) # размер - ш, в, положение - ш, в (3520 + 1080 )
 # 0.4 Где лежат флажки
-flags_loc = r"E:\PY\wt_stats_parser\res\flags" #r'C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\flags'
+flags_loc = r"E:\PY\wt_stats_parser\res\flags" if env == 'LutzBY' else r'C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\flags'
 
 # 1 Функция парсинга результатов
 def parse_battle_stats():
@@ -421,6 +424,18 @@ class WTApp:
             justify="left"
         )
         self.last_mission_label.pack(pady=(10, 5), padx=10, fill='x')
+        
+        # Метка: результат посл. боя
+        self.last_mission_earnings_label = tk.Label(
+            root,
+            text="-",
+            font=("Segoe UI", 10),
+            fg="gray",
+            wraplength=330,
+            anchor="w",
+            justify="left"
+        )
+        self.last_mission_earnings_label.pack(pady=(2, 1), padx=10, fill='x')
 
         # Кнопка
         self.button = tk.Button(
@@ -429,7 +444,7 @@ class WTApp:
             font=("Arial", 12),
             command=self.on_button_click
         )
-        self.button.pack(pady=10)
+        self.button.pack(pady=3)
 
         # Текстовое поле с выводом
         self.text_area = scrolledtext.ScrolledText(
@@ -442,7 +457,7 @@ class WTApp:
             padx=10,
             pady=10
         )
-        self.text_area.pack(expand=True, fill='both', padx=10, pady=5)
+        self.text_area.pack(expand=True, fill='both', padx=10, pady=1)
 
         # Перенаправление print в текстовое поле
         sys.stdout = TextRedirector(self.text_area)
@@ -468,7 +483,6 @@ class WTApp:
             else:
                 flag_image = None
 
-            # Меняем заголовок
             self.last_mission_label.config(
                 text=f"{result}: {mission}",
                 image=flag_image, 
@@ -476,7 +490,19 @@ class WTApp:
                 fg="black"
             ) # Подставляем новый текст
             self.last_mission_label.image = flag_image # сохраняем флажок чтобы ткинтер его не удалил после выполнения
+            
+            # Обновляем строку результатов
+            mission_points = data['total_mission_points']
+            earnings_sl = data['total_sl']
+            earnings_frp = data['total_frp']
+            mission_time = data['mission_time']
+            activity_percent = data['activity_percent']
 
+            self.last_mission_earnings_label.config(
+                text=f"🌐 {mission_points} 🐱 {earnings_sl} 💡{earnings_frp} ⏲️ {mission_time} 🏃 {activity_percent}%",
+                compound='left',
+                fg="black"
+            )
             # Выводим распаршенные строки
             for k, v in data.items():
                 print(f"\n{k}: {v}")
