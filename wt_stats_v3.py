@@ -4,7 +4,7 @@ import pyperclip
 import re
 import pandas as pd
 import sys
-from datetime import timedelta
+from datetime import timedelta, datetime
 from threading import Thread
 import keyboard
 import pygetwindow as gw
@@ -25,12 +25,23 @@ tkinter_geometry = (400, 350, 4065, 1000) if env == 'LutzBY' else (400, 350, 150
 # 0.4 Где лежат флажки
 flags_loc = r"E:\PY\wt_stats_parser\res\flags" if env == 'LutzBY' else r'C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\flags'
 
+##### временная функция дампа (см строку 43)
+def save_raw_report(text, file_path='report_dump.txt'):
+    with open(file_path, 'a', encoding='utf-8') as f:
+        f.write(f"\n{'='*50}\n")
+        f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"{'='*50}\n")
+        f.write(text.strip() + '\n')
+        f.write(f"{'-'*50}\n")
+
 # 1 Функция парсинга результатов
 def parse_battle_stats():
     imported_game_log = pyperclip.paste()
     if not imported_game_log.strip():
         print("❌ Буфер обмена пуст. Скопируй статистику боя и запусти скрипт снова.")
         return None
+    # дополнить список репортов
+    save_raw_report(imported_game_log)
 
     # --- Результат: Победа / Поражение ---
     result_match = re.search(r'(Победа|Поражение) в миссии', imported_game_log)
