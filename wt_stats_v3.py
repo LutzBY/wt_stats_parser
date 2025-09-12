@@ -97,6 +97,20 @@ def parse_battle_stats():
     minutes, seconds = map(int, mission_time.split(':'))
     mission_time = timedelta(minutes=minutes, seconds=seconds)
 
+    # --- Бустеры ---
+    boosters_line = re.search(r'Использованные предметы:\s*([^.]*)', imported_game_log)
+    boosters_used= boosters_line.group(1) if boosters_line else None
+    if boosters_used:
+        # Вынимаем последний процент по ОИ
+        booster_rp_result = re.search(r'даёт\s*\(\+(\d+)%ОИ\)', boosters_used)
+        booster_rp_percent = booster_rp_result.group(1) if booster_rp_result else None
+        # Вынимаем последний процент по СЛ
+        boosters_sl_result = re.search(r'даёт\s*\(\+(\d+)%СЛ\)', boosters_used)
+        boosters_sl_percent = boosters_sl_result.group(1) if boosters_sl_result else None
+    else:
+        booster_rp_percent = None
+        boosters_sl_percent = None
+
     return {
         'session_id': session_id,
         'vehicles': vehicles,
@@ -110,7 +124,10 @@ def parse_battle_stats():
         'mission_time': mission_time,
         'battle_type': battle_type,
         'max_br': max_br,
-        'br_country': br_country
+        'br_country': br_country,
+        'boosters_used': boosters_used,
+        'boosters_sl_percent': boosters_sl_percent,
+        'booster_rp_percent': booster_rp_percent
     }
 
 # 2 Функция сохранения в эксель
@@ -119,7 +136,8 @@ def save_to_excel(data, file_path):
     columns = [
         'session_id', 'vehicles', 'total_sl', 'total_frp', 'total_rp',
         'total_mission_points', 'result', 'mission', 'activity_percent', 
-        'mission_time', 'battle_type', 'max_br', 'br_country'
+        'mission_time', 'battle_type', 'max_br', 'br_country', 
+        'boosters_used', 'boosters_sl_percent', 'booster_rp_percent'
     ]
 
     try:
