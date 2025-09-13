@@ -17,13 +17,13 @@ env = getpass.getuser()
 
 # 0 Вводные
 # 0.1 Куда сохранять эксель
-file_path = r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" if env == 'LutzBY' else r"D:\data.xlsx"
+file_path = r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" if env == 'lutzb' else r"D:\data.xlsx"
 # 0.2 Где лежит база техники
-bd_path = r"E:\PY\wt_stats_parser\res\vehicles_rus.json" if env == 'LutzBY' else r"C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\vehicles_rus.json"
+bd_path = r"E:\PY\wt_stats_parser\res\vehicles_rus.json" if env == 'lutzb' else r"C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\vehicles_rus.json"
 # 0.3 Параметры расположения окна tkinter
-tkinter_geometry = (400, 350, 4065, 1000) if env == 'LutzBY' else (400, 350, 1500, 675) # размер - ш, в, положение - ш, в (3520 + 1080 )
+tkinter_geometry = (400, 350, 4065, 1000) if env == 'lutzb' else (400, 350, 1500, 675) # размер - ш, в, положение - ш, в (3520 + 1080 )
 # 0.4 Где лежат флажки
-flags_loc = r"E:\PY\wt_stats_parser\res\flags" if env == 'LutzBY' else r'C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\flags'
+flags_loc = r"E:\PY\wt_stats_parser\res\flags" if env == 'lutzb' else r'C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\flags'
 
 ##### временная функция дампа (см строку 43)
 def save_raw_report(text, file_path='report_dump.txt'):
@@ -109,18 +109,11 @@ def parse_battle_stats():
     mission_time = timedelta(minutes=minutes, seconds=seconds)
 
     # --- Бустеры ---
-    boosters_line = re.search(r'Использованные предметы:\s*([^.]*)', imported_game_log)
-    boosters_used= boosters_line.group(1) if boosters_line else None
-    if boosters_used:
-        # Вынимаем последний процент по ОИ
-        booster_rp_result = re.search(r'даёт\s*\(\+(\d+)%ОИ\)', boosters_used)
-        booster_rp_percent = booster_rp_result.group(1) if booster_rp_result else None
-        # Вынимаем последний процент по СЛ
-        boosters_sl_result = re.search(r'даёт\s*\(\+(\d+)%СЛ\)', boosters_used)
-        boosters_sl_percent = boosters_sl_result.group(1) if boosters_sl_result else None
-    else:
-        booster_rp_percent = None
-        boosters_sl_percent = None
+    boosters_sl_match = re.search(r'Активные усилители на СЛ:[^.]*?Общий:\s*\+\s*(\d+)%СЛ', imported_game_log)
+    boosters_rp_match = re.search(r'Активные усилители на ОИ:[^.]*?Общий:\s*\+\s*(\d+)%ОИ', imported_game_log)
+
+    boosters_sl_percent = int(boosters_sl_match.group(1)) if boosters_sl_match else None
+    booster_rp_percent = int(boosters_rp_match.group(1)) if boosters_rp_match else None
 
     return {
         'session_id': session_id,
@@ -136,7 +129,6 @@ def parse_battle_stats():
         'battle_type': battle_type,
         'max_br': max_br,
         'br_country': br_country,
-        'boosters_used': boosters_used,
         'boosters_sl_percent': boosters_sl_percent,
         'booster_rp_percent': booster_rp_percent
     }
@@ -148,7 +140,7 @@ def save_to_excel(data, file_path):
         'session_id', 'vehicles', 'total_sl', 'total_frp', 'total_rp',
         'total_mission_points', 'result', 'mission', 'activity_percent', 
         'mission_time', 'battle_type', 'max_br', 'br_country', 
-        'boosters_used', 'boosters_sl_percent', 'booster_rp_percent'
+        'boosters_sl_percent', 'booster_rp_percent'
     ]
 
     try:
