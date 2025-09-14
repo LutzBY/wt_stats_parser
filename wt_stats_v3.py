@@ -12,6 +12,9 @@ import time
 import json
 from PIL import Image, ImageTk
 
+# cd E:\PY\wt_stats_parser
+# pyinstaller --onefile --windowed wt_stats_v3.py
+
 import getpass # для определения текущего пользователя позже убрать
 env = getpass.getuser()
 
