@@ -24,7 +24,7 @@ xlsx_path = r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" if env == 'lutzb' else 
 # 0.2 Где лежит база техники
 bd_path = r"E:\PY\wt_stats_parser\res\vehicles_rus.json" if env == 'lutzb' else r"C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\vehicles_rus.json"
 # 0.3 Параметры расположения окна tkinter
-tkinter_geometry = (400, 350, 4065, 1000) if env == 'lutzb' else (400, 350, 1500, 675) # размер - ш, в, положение - ш, в (3520 + 1080 )
+tkinter_geometry = (500, 300, 3965, 1050) if env == 'lutzb' else (500, 300, 1400, 725) # размер - ш, в, положение - ш, в (3520 + 1080 )
 # 0.4 Где лежат флажки
 res_loc = r"E:\PY\wt_stats_parser\res" if env == 'lutzb' else r'C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res'
 
@@ -97,7 +97,7 @@ def parse_battle_stats():
     for v in all_vehicles:
         cleaned = re.sub(r'\s+', ' ', v.strip())
         # Исключаем ложные срабатывания (например, "Заработано", "Итого")
-        if cleaned and not re.match(r'^[0-9\[\]"]', cleaned) and len(cleaned) > 1:
+        if cleaned and not re.match(r'^[\[\]"]', cleaned) and len(cleaned) > 1:
             vehicles.add(cleaned)
 
     vehicles = ", ".join(sorted(vehicles)) if vehicles else "Неизвестно"
@@ -432,20 +432,67 @@ class BattleAnalyzer:
     def get_averages_from_xlsx(self, battle_type, max_br, br_country):
         # Подгружаем эксель
         df = pd.read_excel(xlsx_path, engine='openpyxl')
+        
+        # 3.9.1 Для поля "Тип+БР"
         # Создаем фильтрованный дф и получаем нужные поля
         filtered_df = df[(df['battle_type'] == battle_type) & (df['max_br'] == max_br)]
-        avg_mp = int(filtered_df['total_mission_points'].mean())
-        avg_sl = int(filtered_df['total_sl'].mean())
-        avg_rp = int(filtered_df['total_rp'].mean())
-        avg_act= int(filtered_df['activity_percent'].mean())
-        avg_time =  timedelta(filtered_df['mission_time'].mean())
+        if filtered_df.empty == False:
+            avg_mp = int(filtered_df['total_mission_points'].mean()) # cannot convert float NaN to integer
+            avg_sl = int(filtered_df['total_sl'].mean())
+            avg_rp = int(filtered_df['total_rp'].mean())
+            avg_act = int(filtered_df['activity_percent'].mean())
+            avg_time = filtered_df['mission_time'].mean()
+            td = pd.to_timedelta(avg_time, unit='D')
+            hours = td.components.hours
+            minutes = td.components.minutes
+            seconds = td.components.seconds
+            formatted_time = f"{hours}:{minutes:02d}:{seconds:02d}"
+        else: 
+           avg_mp = avg_sl = avg_rp = avg_act = avg_time = formatted_time = None
+
+        # 3.9.2 Для поля "Нация"
+        filtered_df = df[(df['battle_type'] == battle_type) & (df['br_country'] == br_country)]
+        avg_mp_country = int(filtered_df['total_mission_points'].mean())
+        avg_sl_country = int(filtered_df['total_sl'].mean())
+        avg_rp_country = int(filtered_df['total_rp'].mean())
+        avg_act_country = int(filtered_df['activity_percent'].mean())
+        avg_time = filtered_df['mission_time'].mean()
+        td = pd.to_timedelta(avg_time, unit='D')
+        hours = td.components.hours
+        minutes = td.components.minutes
+        seconds = td.components.seconds
+        formatted_time_country = f"{hours}:{minutes:02d}:{seconds:02d}"
+
+        # 3.9.3 Для поля "По типу всего без бустеров"
         
+        filtered_df = df[(df['battle_type'] == battle_type) ]
+        avg_mp_no_boosters= int(filtered_df['total_mission_points'].mean())
+        avg_sl_no_boosters = int(filtered_df['total_sl'].mean())
+        avg_rp_no_boosters = int(filtered_df['total_rp'].mean())
+        avg_act_no_boosters = int(filtered_df['activity_percent'].mean())
+        avg_time = filtered_df['mission_time'].mean()
+        td = pd.to_timedelta(avg_time, unit='D')
+        hours = td.components.hours
+        minutes = td.components.minutes
+        seconds = td.components.seconds
+        formatted_time_no_boosters = f"{hours}:{minutes:02d}:{seconds:02d}"
+
         return {
         'avg_mp': avg_mp,
         'avg_sl': avg_sl,
         'avg_rp': avg_rp,
+        'avg_time': formatted_time,
         'avg_act': avg_act,
-        'avg_time': avg_time
+        'avg_mp_country' : avg_mp_country,
+        'avg_sl_country': avg_sl_country,
+        'avg_rp_country': avg_rp_country,
+        'avg_act_country': avg_act_country,
+        'formatted_time_country': formatted_time_country,
+        'avg_mp_no_boosters' : avg_mp_no_boosters,
+        'avg_sl_no_boosters' : avg_sl_no_boosters,
+        'avg_rp_no_boosters' : avg_rp_no_boosters,
+        'avg_act_no_boosters' : avg_act_no_boosters,
+        'formatted_time_no_boosters' : formatted_time_no_boosters
         }
 
 # 4 Окно Tkinter
@@ -453,136 +500,214 @@ class WTApp:
     def __init__(self, root, tkinter_geometry):
         self.root = root
         self.root.title("WT Parser")
-        root.geometry('%dx%d+%d+%d' % (tkinter_geometry))
+        root.geometry('%dx%d+%d+%d' % tkinter_geometry)
         self.root.resizable(True, True)
-        self.root.attributes('-topmost', True) # поверх
-        self.root.attributes('-alpha', 0.75) # прозрачность
-        
-        # Метка: последняя миссия
-        self.last_mission_label = tk.Label(
-            root,
+        self.root.attributes('-topmost', True)
+        self.root.attributes('-alpha', 0.75)
+
+        # Настройка сетки
+        root.grid_rowconfigure(5, weight=1)  # растяжение для text_area
+        root.grid_columnconfigure(0, weight=1)
+
+        # --- 0. Заголовок: флаг + результат + миссия ---
+        self.header_frame = tk.Frame(root)
+        self.header_frame.grid(row=0, column=0, sticky='w', padx=10, pady=(10, 2))
+
+        self.flag_label = tk.Label(
+            self.header_frame,
+            font=("Segoe UI", 11),
+            anchor="w"
+        )
+        self.flag_label.pack(side='left')
+
+        self.mission_label = tk.Label(
+            self.header_frame,
             text="Последняя миссия: неизвестно",
             font=("Segoe UI", 11),
             fg="gray",
-            anchor="w",
-            justify="left"
+            anchor="w"
         )
-        self.last_mission_label.pack(pady=(10, 5), padx=10, fill='x')
-        
-        # Метка: результат посл. боя
-        self.last_mission_earnings_label = tk.Label(
+        self.mission_label.pack(side='left', padx=(5, 0))
+
+        # --- 1. Инфо-строка: тип, БР, бустеры ---
+        self.info_label = tk.Label(
             root,
-            text="-",
-            font=("Segoe UI", 14),
+            text="",
+            font=("Segoe UI", 9),
+            fg="black",
+            anchor="w"
+        )
+        self.info_label.grid(row=1, column=0, sticky='w', padx=10, pady=2)
+
+        # --- 2. Техника ---
+        self.vehicles_label = tk.Label(
+            root,
+            text="",
+            font=("Consolas", 10),
             fg="gray",
             anchor="w",
-            justify="left"
+            wraplength=380
         )
-        self.last_mission_earnings_label.pack(pady=(2, 1), padx=10, fill='x')
+        self.vehicles_label.grid(row=2, column=0, sticky='w', padx=10, pady=2)
 
-        # Метка: статистика по фильтру
-        self.filtered_averages_label = tk.Label(
-            root,
-            text="-",
-            font=("Segoe UI", 11),
-            fg="gray",
-            anchor="w",
-            justify="left"
-        )
-        self.filtered_averages_label.pack(pady=(2, 1), padx=10, fill='x')
+        # --- 3. Таблица: текущие и средние значения ---
+        self.stats_frame = tk.Frame(root, bd=1, relief="solid")
+        self.stats_frame.grid(row=3, column=0, sticky='ew', padx=10, pady=5)
 
-        # Кнопка
+        # Настройка колонок
+        for col in range(5):
+            self.stats_frame.grid_columnconfigure(col, weight=1, uniform="col")
+
+        # Заголовки (Row 0)
+        headers = ['','🌐', '🐱', '💡', '⏲️', '🏃']
+        for col, text in enumerate(headers):
+            tk.Label(
+                self.stats_frame,
+                text=text,
+                font=("Courier New", 9, "bold"),
+                fg="gray",
+                anchor="center"
+            ).grid(row=0, column=col, sticky='ew')
+
+        # Создаём строки данных (без вложенных Frame!)
+        self.current_row = self.create_stat_row(1, "Текущий бой")
+        self.avg_type_br_row = self.create_stat_row(2, "AVG (тип/БР)")
+        self.avg_nation_row = self.create_stat_row(3, "AVG (нация)")
+        self.avg_no_boosters_row = self.create_stat_row(4, "AVG Без бустеров")
+
+        # --- 4. Кнопка ---
         self.button = tk.Button(
             root,
             text="📝 Записать",
-            font=("Arial", 12),
+            font=("Arial", 11),
             command=self.on_button_click
         )
-        self.button.pack(pady=3)
+        self.button.grid(row=4, column=0, pady=5)
 
-        # Текстовое поле с выводом
+        # --- 5. Лог (терминал) ---
         self.text_area = scrolledtext.ScrolledText(
             root,
             wrap=tk.WORD,
-            font=("Consolas", 10),
+            font=("Consolas", 9),
             state='disabled',
             bg="white",
             fg="black",
-            padx=10,
-            pady=10
+            height=6
         )
-        self.text_area.pack(expand=True, fill='both', padx=10, pady=1)
+        self.text_area.grid(row=5, column=0, padx=10, pady=(0, 10))
 
-        # Перенаправление print в текстовое поле
         sys.stdout = TextRedirector(self.text_area)
 
+    def create_stat_row(self, row, label_text):
+        """Возвращает список из 5 Label, размещённых в stats_frame"""
+        # Метка слева
+        tk.Label(
+            self.stats_frame,
+            text=label_text,
+            font=("Courier New", 8),
+            fg="gray",
+            width=12,
+            anchor="center"
+        ).grid(row=row, column=0, sticky='w', padx=(0, 5))
+
+        # Пять ячеек данных
+        labels = []
+        for col in range(1, 6):  # колонки 1–5
+            lbl = tk.Label(
+                self.stats_frame,
+                text="—",
+                font=("Courier New", 9, "bold"),
+                anchor="center"
+            )
+            lbl.grid(row=row, column=col, sticky='ew')
+            labels.append(lbl)
+        return labels
+    
     def on_button_click(self):
-        self.text_area.configure(state='normal')
-        self.text_area.delete(1.0, tk.END)
-        self.text_area.configure(state='disabled')
         print("🔄 Обработка буфера обмена...")
-        
         data = parse_battle_stats()
-        if data:
-            print("\n📋 Извлечено:")
-
-            # Обновляем заголовок информацией из миссии
-            mission = data['mission']
-            result = data['result']
-            br_country = data['br_country']
-            # и получаем флаг из словаря
-            img_name = analyzer.COUNTRY_TO_FLAG_FILE.get(br_country, None)
-            if img_name:
-                flag_image = analyzer.load_img('flags', img_name, img_size=(20, 14))
-            else:
-                flag_image = None
-
-            self.last_mission_label.config(
-                text=f"{result}: {mission}",
-                image=flag_image, 
-                compound='left',
-                fg="black"
-            ) # Подставляем новый текст
-            self.last_mission_label.image = flag_image # сохраняем флажок чтобы ткинтер его не удалил после выполнения
-            
-            # Обновляем строку результатов
-            mission_points = data['total_mission_points']
-            earnings_sl = data['total_sl']
-            earnings_frp = data['total_frp']
-            mission_time = data['mission_time']
-            activity_percent = data['activity_percent']
-            
-            self.last_mission_earnings_label.config(
-                text=f"🌐 {mission_points} 🐱 {earnings_sl} 💡{earnings_frp} ⏲️ {mission_time} 🏃 {activity_percent}%",
-                compound='left',
-                fg="black"
-            )
-
-            # Обновляем строку статистики
-            battle_type = data['battle_type']
-            max_br = data['max_br']
-            br_country = data['br_country']
-
-            # Получем средние из экселя
-            averages = analyzer.get_averages_from_xlsx(battle_type, max_br, br_country)
-            
-            self.filtered_averages_label.config(
-                text=f"""Средние значения для {battle_type} на БР {max_br}:
-                \n🌐 {averages['avg_mp']} 🐱 {averages['avg_sl']} 💡{averages['avg_rp']} ⏲️ {averages['avg_time']} 🏃 {averages['avg_act']}%
-                """,
-                compound='left',
-                fg="black"
-            )
-
-            # Выводим в окошко WORD распаршенные строки
-            for k, v in data.items():
-                print(f"\n{k}: {v}")
-            
-            # Вызываем запись в эксель
-            save_to_excel(data, xlsx_path)
-
-        else:
+        if not data:
             print("❌ Обработка не удалась.")
+            return
+
+        # --- 0. Заголовок: флаг + миссия ---
+        mission = data['mission']
+        result = data['result']
+        br_country = data['br_country']
+
+        img_name = analyzer.COUNTRY_TO_FLAG_FILE.get(br_country, None)
+        flag_image = analyzer.load_img('flags', img_name, img_size=(20, 14)) if img_name else None
+
+        self.flag_label.config(image=flag_image)
+        self.flag_label.image = flag_image
+
+        self.mission_label.config(text=f"{result}: {mission}", fg="black")
+
+        # --- 1. Инфо-строка: тип, БР, бустеры ---
+        battle_type = data['battle_type']
+        max_br = data['max_br']
+        booster_rp_percent = data['booster_rp_percent']
+        boosters_sl_percent = data['boosters_sl_percent']
+        if booster_rp_percent and boosters_sl_percent:
+            boosters_percent_formatted = f'RP +{booster_rp_percent}%, SL +{boosters_sl_percent}%'
+        elif booster_rp_percent and boosters_sl_percent is None:
+            boosters_percent_formatted = f'RP +{booster_rp_percent}%'
+        elif boosters_sl_percent and booster_rp_percent is None:
+            boosters_percent_formatted = f'SL +{boosters_sl_percent}%'
+        else:
+            boosters_percent_formatted = 'Без бустеров'
+
+        self.info_label.config(
+            text=f"{battle_type} | BR {max_br} | {boosters_percent_formatted}"
+        )
+
+        # --- 2. Техника ---
+        vehicles = data['vehicles']
+        self.vehicles_label.config(text=vehicles)
+
+        # --- 3. Таблица значений ---
+        mp = data['total_mission_points']
+        sl = data['total_sl']
+        rp = data['total_frp']
+        time_str = str(data['mission_time'])
+        act = data['activity_percent']
+
+        self.current_row[0].config(text=mp)
+        self.current_row[1].config(text=f"{sl:,}".replace(',', ' '))
+        self.current_row[2].config(text=f"{rp:,}".replace(',', ' '))
+        self.current_row[3].config(text=time_str)
+        self.current_row[4].config(text=f"{act}%")
+
+        # --- Расчет средних значений ---
+        averages = analyzer.get_averages_from_xlsx(battle_type, max_br, br_country)
+
+        avg_mp, avg_sl, avg_rp, avg_time, avg_act, avg_mp_country, avg_sl_country, avg_rp_country, avg_act_country, formatted_time_country, avg_mp_no_boosters, avg_sl_no_boosters, avg_rp_no_boosters, avg_act_no_boosters, formatted_time_no_boosters = averages.values()
+        if avg_mp:
+            self.avg_type_br_row[0].config(text=avg_mp)
+            self.avg_type_br_row[1].config(text=f"{avg_sl:,}".replace(',', ' '))
+            self.avg_type_br_row[2].config(text=f"{avg_rp:,}".replace(',', ' '))
+            self.avg_type_br_row[3].config(text=avg_time)
+            self.avg_type_br_row[4].config(text=f"{avg_act}%")
+        if avg_mp_country:
+            self.avg_nation_row[0].config(text=avg_mp_country)
+            self.avg_nation_row[1].config(text=f"{avg_sl_country:,}".replace(',', ' '))
+            self.avg_nation_row[2].config(text=f"{avg_rp_country:,}".replace(',', ' '))
+            self.avg_nation_row[3].config(text=formatted_time_country)
+            self.avg_nation_row[4].config(text=f"{avg_act_country}%")
+        if avg_mp_no_boosters:
+            self.avg_no_boosters_row[0].config(text=avg_mp_no_boosters)
+            self.avg_no_boosters_row[1].config(text=f"{avg_sl_no_boosters:,}".replace(',', ' '))
+            self.avg_no_boosters_row[2].config(text=f"{avg_rp_no_boosters:,}".replace(',', ' '))
+            self.avg_no_boosters_row[3].config(text=formatted_time_no_boosters)
+            self.avg_no_boosters_row[4].config(text=f"{avg_act_no_boosters}%")
+
+        
+        # Аналогично для других строк (пока просто дублируем)
+        # Позже подключи: среднее по нации, без бустеров и т.д.
+        
+        # --- Сохранение ---
+        save_to_excel(data, xlsx_path)
+        print("✅ Данные сохранены")
 
 # 5 Забираем текст из print() для размещения его в окне ткинтер
 class TextRedirector:
