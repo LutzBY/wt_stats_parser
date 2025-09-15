@@ -452,16 +452,19 @@ class BattleAnalyzer:
 
         # 3.9.2 Для поля "Нация"
         filtered_df = df[(df['battle_type'] == battle_type) & (df['br_country'] == br_country)]
-        avg_mp_country = int(filtered_df['total_mission_points'].mean())
-        avg_sl_country = int(filtered_df['total_sl'].mean())
-        avg_rp_country = int(filtered_df['total_rp'].mean())
-        avg_act_country = int(filtered_df['activity_percent'].mean())
-        avg_time = filtered_df['mission_time'].mean()
-        td = pd.to_timedelta(avg_time, unit='D')
-        hours = td.components.hours
-        minutes = td.components.minutes
-        seconds = td.components.seconds
-        formatted_time_country = f"{hours}:{minutes:02d}:{seconds:02d}"
+        if filtered_df.empty == False:
+            avg_mp_country = int(filtered_df['total_mission_points'].mean())
+            avg_sl_country = int(filtered_df['total_sl'].mean())
+            avg_rp_country = int(filtered_df['total_rp'].mean())
+            avg_act_country = int(filtered_df['activity_percent'].mean())
+            avg_time = filtered_df['mission_time'].mean()
+            td = pd.to_timedelta(avg_time, unit='D')
+            hours = td.components.hours
+            minutes = td.components.minutes
+            seconds = td.components.seconds
+            formatted_time_country = f"{hours}:{minutes:02d}:{seconds:02d}"
+        else: 
+           avg_mp_country = avg_sl_country = avg_rp_country = avg_act_country = avg_time = formatted_time_country = None
 
         # 3.9.3 Для поля "По типу всего без бустеров"
         
