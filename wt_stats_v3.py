@@ -20,7 +20,7 @@ env = getpass.getuser()
 
 # 0 Вводные
 # 0.1 Куда сохранять эксель
-file_path = r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" if env == 'lutzb' else r"D:\data.xlsx"
+xlsx_path = r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" if env == 'lutzb' else r"D:\data.xlsx"
 # 0.2 Где лежит база техники
 bd_path = r"E:\PY\wt_stats_parser\res\vehicles_rus.json" if env == 'lutzb' else r"C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\vehicles_rus.json"
 # 0.3 Параметры расположения окна tkinter
@@ -137,7 +137,7 @@ def parse_battle_stats():
     }
 
 # 2 Функция сохранения в эксель
-def save_to_excel(data, file_path):
+def save_to_excel(data, xlsx_path):
     
     columns = [
         'session_id', 'vehicles', 'total_sl', 'total_frp', 'total_rp',
@@ -147,7 +147,7 @@ def save_to_excel(data, file_path):
     ]
 
     try:
-        df = pd.read_excel(file_path, engine='openpyxl')
+        df = pd.read_excel(xlsx_path, engine='openpyxl')
     except (FileNotFoundError, ValueError):
         df = pd.DataFrame(columns=columns)
 
@@ -159,7 +159,7 @@ def save_to_excel(data, file_path):
     df = pd.concat([df, new_row], ignore_index=True)
 
     # Сохраняем
-    df.to_excel(file_path, index=False, engine='openpyxl')
+    df.to_excel(xlsx_path, index=False, engine='openpyxl')
     print(f"\n ✅ Обновлено: {data['session_id']}")
 
 # 3 Работа с БД бр-ов и видов техники, возврат страны, бр и вида боя
@@ -532,7 +532,7 @@ class WTApp:
                 print(f"\n{k}: {v}")
             
             # Вызываем запись в эксель
-            save_to_excel(data, file_path)
+            save_to_excel(data, xlsx_path)
 
         else:
             print("❌ Обработка не удалась.")
