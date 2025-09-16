@@ -470,8 +470,8 @@ class BattleAnalyzer:
         
         filtered_df = df[(df['battle_type'] == battle_type) ]
         avg_mp_no_boosters= int(filtered_df['total_mission_points'].mean())
-        avg_sl_no_boosters = int(filtered_df['total_sl'].mean())
-        avg_rp_no_boosters = int(filtered_df['total_rp'].mean())
+        avg_sl_no_boosters = int((filtered_df['total_sl'] / (1 + filtered_df['boosters_sl_percent'].fillna(0) / 100)).mean())
+        avg_rp_no_boosters = int((filtered_df['total_rp'] / (1 + filtered_df['booster_rp_percent'].fillna(0) / 100)).mean())
         avg_act_no_boosters = int(filtered_df['activity_percent'].mean())
         avg_time = filtered_df['mission_time'].mean()
         td = pd.to_timedelta(avg_time, unit='D')
