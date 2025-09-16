@@ -44,7 +44,7 @@ def parse_battle_stats():
         print("❌ Буфер обмена пуст. Скопируй статистику боя и запусти скрипт снова.")
         return None
     # дополнить список репортов
-    ########################################### save_raw_report(imported_game_log)
+    save_raw_report(imported_game_log)
 
     # --- Результат: Победа / Поражение ---
     result_match = re.search(r'(Победа|Поражение) в миссии', imported_game_log)
@@ -116,7 +116,7 @@ def parse_battle_stats():
     boosters_rp_match = re.search(r'Активные усилители на ОИ:[^.]*?Общий:\s*\+\s*(\d+)%ОИ', imported_game_log)
 
     boosters_sl_percent = int(boosters_sl_match.group(1)) if boosters_sl_match else None
-    booster_rp_percent = int(boosters_rp_match.group(1)) if boosters_rp_match else None
+    boosters_rp_percent = int(boosters_rp_match.group(1)) if boosters_rp_match else None
 
     return {
         'session_id': session_id,
@@ -133,7 +133,7 @@ def parse_battle_stats():
         'max_br': max_br,
         'br_country': br_country,
         'boosters_sl_percent': boosters_sl_percent,
-        'booster_rp_percent': booster_rp_percent
+        'boosters_rp_percent': boosters_rp_percent
     }
 
 # 2 Функция сохранения в эксель
@@ -143,7 +143,7 @@ def save_to_excel(data, xlsx_path):
         'session_id', 'vehicles', 'total_sl', 'total_frp', 'total_rp',
         'total_mission_points', 'result', 'mission', 'activity_percent', 
         'mission_time', 'battle_type', 'max_br', 'br_country', 
-        'boosters_sl_percent', 'booster_rp_percent'
+        'boosters_sl_percent', 'boosters_rp_percent'
     ]
 
     try:
@@ -471,7 +471,7 @@ class BattleAnalyzer:
         filtered_df = df[(df['battle_type'] == battle_type) ]
         avg_mp_no_boosters= int(filtered_df['total_mission_points'].mean())
         avg_sl_no_boosters = int((filtered_df['total_sl'] / (1 + filtered_df['boosters_sl_percent'].fillna(0) / 100)).mean())
-        avg_rp_no_boosters = int((filtered_df['total_rp'] / (1 + filtered_df['booster_rp_percent'].fillna(0) / 100)).mean())
+        avg_rp_no_boosters = int((filtered_df['total_rp'] / (1 + filtered_df['boosters_rp_percent'].fillna(0) / 100)).mean())
         avg_act_no_boosters = int(filtered_df['activity_percent'].mean())
         avg_time = filtered_df['mission_time'].mean()
         td = pd.to_timedelta(avg_time, unit='D')
@@ -649,13 +649,13 @@ class WTApp:
         # --- 1. Инфо-строка: тип, БР, бустеры ---
         battle_type = data['battle_type']
         max_br = data['max_br']
-        booster_rp_percent = data['booster_rp_percent']
+        boosters_rp_percent = data['boosters_rp_percent']
         boosters_sl_percent = data['boosters_sl_percent']
-        if booster_rp_percent and boosters_sl_percent:
-            boosters_percent_formatted = f'RP +{booster_rp_percent}%, SL +{boosters_sl_percent}%'
-        elif booster_rp_percent and boosters_sl_percent is None:
-            boosters_percent_formatted = f'RP +{booster_rp_percent}%'
-        elif boosters_sl_percent and booster_rp_percent is None:
+        if boosters_rp_percent and boosters_sl_percent:
+            boosters_percent_formatted = f'RP +{boosters_rp_percent}%, SL +{boosters_sl_percent}%'
+        elif boosters_rp_percent and boosters_sl_percent is None:
+            boosters_percent_formatted = f'RP +{boosters_rp_percent}%'
+        elif boosters_sl_percent and boosters_rp_percent is None:
             boosters_percent_formatted = f'SL +{boosters_sl_percent}%'
         else:
             boosters_percent_formatted = 'Без бустеров'
