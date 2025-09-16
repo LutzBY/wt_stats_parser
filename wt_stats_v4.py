@@ -562,21 +562,21 @@ class WTApp:
             self.stats_frame.grid_columnconfigure(col, weight=1, uniform="col")
 
         # Заголовки (Row 0)
-        headers = ['','🌐', '🐱', '💡', '⏲️', '🏃']
+        headers = ['По типу боя:','🌐', '🐱', '💡', '⏲️', '🏃']
         for col, text in enumerate(headers):
             tk.Label(
                 self.stats_frame,
                 text=text,
                 font=("Courier New", 9, "bold"),
-                fg="gray",
+                fg="black",
                 anchor="center"
             ).grid(row=0, column=col, sticky='ew')
 
         # Создаём строки данных (без вложенных Frame!)
         self.current_row = self.create_stat_row(1, "Текущий бой")
-        self.avg_type_br_row = self.create_stat_row(2, "AVG (тип/БР)")
+        self.avg_type_br_row = self.create_stat_row(2, "AVG (БР)")
         self.avg_nation_row = self.create_stat_row(3, "AVG (нация)")
-        self.avg_no_boosters_row = self.create_stat_row(4, "AVG Без бустеров")
+        self.avg_no_boosters_row = self.create_stat_row(4, "Всех, без бустеров")
 
         # --- 4. Кнопка ---
         self.button = tk.Button(
@@ -610,7 +610,8 @@ class WTApp:
             font=("Courier New", 8),
             fg="gray",
             width=12,
-            anchor="center"
+            anchor="w",
+            wraplength='120'
         ).grid(row=row, column=0, sticky='w', padx=(0, 5))
 
         # Пять ячеек данных
