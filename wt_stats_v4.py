@@ -704,10 +704,6 @@ class WTApp:
             self.avg_no_boosters_row[2].config(text=f"{avg_rp_no_boosters:,}".replace(',', ' '))
             self.avg_no_boosters_row[3].config(text=formatted_time_no_boosters)
             self.avg_no_boosters_row[4].config(text=f"{avg_act_no_boosters}%")
-
-        
-        # Аналогично для других строк (пока просто дублируем)
-        # Позже подключи: среднее по нации, без бустеров и т.д.
         
         # --- Сохранение ---
         save_to_excel(data, xlsx_path)
