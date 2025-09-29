@@ -82,7 +82,7 @@ def parse_battle_stats():
     activity_percent = int(activity_match.group(1)) if activity_match else None
 
     # --- Использованная техника ---
-    vehicles = set()
+    vehicles_set = set()
 
     # Паттерн 1: "Время активности" — ищем текст до "Цифры + (ПА)"
     pattern_active = r'^\s*(.+?)\s+\d+\s*\+\s*$$ПА$$'
@@ -98,15 +98,9 @@ def parse_battle_stats():
         cleaned = re.sub(r'\s+', ' ', v.strip())
         # Исключаем ложные срабатывания (например, "Заработано", "Итого")
         if cleaned and not re.match(r'^[\[\]"]', cleaned) and len(cleaned) > 1:
-            vehicles.add(cleaned)
-        
-        # Получение индекса был ли прем техника и сколько
-        is_prem_veh_used = analyzer.is_prem_veh_used(vehicles)
+            vehicles_set.add(cleaned)
 
-    vehicles = ", ".join(sorted(vehicles)) if vehicles else "Неизвестно"
-
-    # --- Запуск анализатора по строке vehicles ---
-    battle_type, max_br, br_country = analyzer.analyze_battle(vehicles)
+    vehicles = ", ".join(sorted(vehicles_set)) if vehicles_set else "Неизвестно"
 
     # --- Время миссии ---
     mission_time_match = re.search(r'Время игры\s*(\d+:\d+)', imported_game_log)
@@ -120,6 +114,12 @@ def parse_battle_stats():
 
     boosters_sl_percent = int(boosters_sl_match.group(1)) if boosters_sl_match else None
     boosters_rp_percent = int(boosters_rp_match.group(1)) if boosters_rp_match else None
+
+    # --- Запуск анализатора по строке vehicles - Получение бр, типа боя и страны ---
+    battle_type, max_br, br_country = analyzer.analyze_battle(vehicles)
+
+    # --- Запуск анализатора по vehicles_set - Получение индекса был ли прем техника и сколько ---
+    is_prem_veh_used = analyzer.is_prem_veh_used(vehicles_set)
 
     return {
         'session_id': session_id,
@@ -501,6 +501,7 @@ class BattleAnalyzer:
         'avg_act_no_boosters' : avg_act_no_boosters,
         'formatted_time_no_boosters' : formatted_time_no_boosters
         }
+    
     # 3.10 Проверка использовалась ли прем техника в бою
     # Возвращает 0 если нет, 1 и более, если было 1 и более машин в списке
     def is_prem_veh_used(self, vehicles):
@@ -510,7 +511,6 @@ class BattleAnalyzer:
             value = row[5]
             if name in vehicles:
                 is_prem += value
-                print (name, value)
         return is_prem
 
 
@@ -565,7 +565,7 @@ class WTApp:
             font=("Consolas", 10),
             fg="gray",
             anchor="w",
-            wraplength=380
+            wraplength=500
         )
         self.vehicles_label.grid(row=2, column=0, sticky='w', padx=10, pady=2)
 
