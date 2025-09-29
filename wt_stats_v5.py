@@ -533,33 +533,78 @@ class BattleAnalyzer:
 
     # 3.11 - Анализатор по технике
     def save_vehicle_stats(self, imported_game_log, vehicles_set, boosters_sl_percent, boosters_rp_percent, session_id, result, xlsx_path):
-        """
-        Собирает детальную статистику по каждой использованной технике:
-        - заработанные СЛ, ОИ, очки миссии
-        - коррекция на бустеры
-        - премиум/нормальная техника
-        Записывает на лист 'vehicles' в Excel.
-        """
-
-        # --- Извлечение блоков ---
-        def extract_block(text, marker):
+        normalized_log = imported_game_log.replace('\r\n', '\n').replace('\r', '\n')
+        def extract_block(text, keywords):
+            """
+            Извлекает блок, начиная со строки, содержащей все ключевые слова,
+            и до первой пустой строки или конца текста.
+            """
             lines = text.split('\n')
             in_block = False
             block_lines = []
-            for line in lines:
-                stripped = line.strip()
-                if marker in line:
+            # Список возможных заголовков других блоков для раннего выхода (можно расширить)
+            # Это поможет, если блоки не всегда отделены пустой строкой, но начинаются новый заголовок
+            other_block_starters = [
+                'Уничтожение авиации',
+                'Уничтожение наземной техники', # Повтор для других вариантов
+                'Помощь в уничтожении противника',
+                'Критические повреждения противника',
+                'Фатальные повреждения противника', # На случай, если это другой тип
+                'Повреждения противника',
+                'Захват зон',
+                'Разведка противника',
+                'Награды',
+                'Время активности',
+                'Время игры',
+                'Награда за победу',
+                'Награда за участие в миссии',
+                'Бонус за мастерство',
+                'Заработано:',
+                'Активность:',
+                'Повреждённая техника:',
+                'Потраченных машин-дублёров:',
+                'Автоматический ремонт',
+                'Автоматическая закупка',
+                'Исследуемая техника:',
+                'Прогресс исследований:',
+                'Сессия:',
+                'Итого:'
+                # Добавьте сюда другие, если нужно
+            ]
+            
+            for i, line in enumerate(lines):
+                stripped_line = line.strip()
+                
+                # --- Начало блока ---
+                if not in_block and all(kw in stripped_line for kw in keywords):
                     in_block = True
-                    continue
-                if in_block and (not stripped or ':' in stripped):
-                    break
-                if in_block and stripped:
-                    block_lines.append(line)
-            return '\n'.join(block_lines)
+                    continue # Пропускаем саму строку-заголовок, если не нужна
+                
+                # --- Внутри блока ---
+                if in_block:
+                    # --- Условие выхода ---
+                    # 1. Конец текста
+                    if not stripped_line:
+                        break # Обычно пустая строка означает конец блока
+                    
+                    # 2. Начало другого блока
+                    is_other_block_start = any(starter in stripped_line for starter in other_block_starters if starter != ' '.join(keywords))
+                    # Также проверим, если сама строка является заголовком
+                    if is_other_block_start and not all(kw in stripped_line for kw in keywords):
+                        break
 
-        active_block = extract_block(imported_game_log, "Время активности")
-        game_block   = extract_block(imported_game_log, "Время игры")
-        all_text = active_block + "\n" + game_block
+                    block_lines.append(stripped_line)
+
+            result = '\n'.join(block_lines) if block_lines else None
+            return result
+
+        # --- Извлечение блоков ---
+        kill_block   = extract_block(normalized_log, ['Уничтожение', 'наземной', 'техники'])
+        kill_air_block   = extract_block(normalized_log, ['Уничтожение', 'авиации'])
+        assist_block = extract_block(normalized_log, ['Помощь', 'уничтожении', 'противника'])
+        crit_block    = extract_block(normalized_log, ['Критические', 'повреждения'])
+        cap_block     = extract_block(normalized_log, ['Захват', 'зон'])
+        game_block    = extract_block(normalized_log, ['Время', 'игры'])
 
         rows = []
 
@@ -568,22 +613,13 @@ class BattleAnalyzer:
             total_rp = 0
             total_mp = 0
 
-            # Ищем во всём логе
+            # Суммируем SL/RP/MP по всему логу
             pattern = rf'.*{re.escape(vehicle)}.*(?:СЛ|ОИ|очков миссии)'
             matches = re.findall(pattern, imported_game_log, re.IGNORECASE)
 
             for match in matches:
-                # Извлечение СЛ: "1234 СЛ" или "= 1234 СЛ"
                 sl_match = re.search(r'=\s*(\d+)\s*СЛ', match)
-                if not sl_match:
-                    sl_match = re.search(r'(\d+)\s*СЛ(?!\()', match)  # исключаем "100 очков миссии"
-
-                # Извлечение ОИ: "= 123 ОИ" или "123 ОИ"
                 rp_match = re.search(r'=\s*(\d+)\s*ОИ', match)
-                if not rp_match:
-                    rp_match = re.search(r'(\d+)\s*ОИ(?!\()', match)
-
-                # Извлечение очков миссии
                 mp_match = re.search(r'(\d+)\s*очк(?:о|а|ов)\s*миссии', match)
 
                 if sl_match:
@@ -593,21 +629,30 @@ class BattleAnalyzer:
                 if mp_match:
                     total_mp += int(mp_match.group(1))
 
-            # --- Проверяем: была ли вообще активность? ---
-            if total_sl == 0 and total_rp == 0 and total_mp == 0:
-                # Попробуем найти просто упоминание в "Время активности" или "Время игры"
-                simple_pattern = re.escape(vehicle)
-                if not re.search(simple_pattern, active_block, re.IGNORECASE) and \
-                not re.search(simple_pattern, game_block, re.IGNORECASE):
-                    print(f"⚠️ Полностью не найдено: {vehicle}")
-                    continue
-                # Если нашли, но данных нет — оставляем нули
-                print(f"ℹ️ Найдено: {vehicle}, но данных по СЛ/ОИ/MP нет — записываем нули")
+            # --- Активность и время — только из "Время игры" ---
+            activity_percent = None
+            mission_time = None
+            if game_block:
+                for line in game_block.split('\n'):
+                    if vehicle in line:
+                        act_match = re.search(r'(\d+)%', line)
+                        time_match = re.search(r'(\d{1,2}:\d{2}(?::\d{2})?)', line)
+                        if act_match:
+                            activity_percent = int(act_match.group(1))
+                        if time_match:
+                            mission_time = time_match.group(1)
+                            minutes, seconds = map(int, mission_time.split(':'))
+                            mission_time = timedelta(minutes=minutes, seconds=seconds)
+                        break
+
+            # --- Если данных нет — пропускаем? или пишем нули? ---
+            if total_sl == 0 and total_rp == 0 and total_mp == 0 and activity_percent is None:
+                print(f"⚠️ Нет данных по: {vehicle}")
+                continue
 
             # --- Коррекция на бустеры ---
             sl_boost = boosters_sl_percent or 0
             rp_boost = boosters_rp_percent or 0
-
             corrected_sl = total_sl / (1 + sl_boost / 100) if sl_boost > 0 else total_sl
             corrected_rp = total_rp / (1 + rp_boost / 100) if rp_boost > 0 else total_rp
 
@@ -618,6 +663,13 @@ class BattleAnalyzer:
                     premium = row[5]
                     break
 
+            # --- Подсчёт действий ---
+            kills = len(re.findall(rf'{re.escape(vehicle)}', kill_block, re.IGNORECASE)) if kill_block else 0
+            kills_air = len(re.findall(rf'{re.escape(vehicle)}', kill_air_block, re.IGNORECASE)) if kill_air_block else 0
+            assists = len(re.findall(rf'{re.escape(vehicle)}', assist_block, re.IGNORECASE)) if assist_block else 0
+            crits = len(re.findall(rf'{re.escape(vehicle)}', crit_block, re.IGNORECASE)) if crit_block else 0
+            base_caps = len(re.findall(rf'{re.escape(vehicle)}.*?\d+%', cap_block, re.IGNORECASE)) if cap_block else 0
+
             rows.append({
                 'battle_id': session_id,
                 'result': result,
@@ -625,7 +677,14 @@ class BattleAnalyzer:
                 'premium': premium,
                 'sl_corrected': round(corrected_sl),
                 'rp_corrected': round(corrected_rp),
-                'mp': total_mp
+                'mp': total_mp,
+                'activity_percent': activity_percent,
+                'mission_time': mission_time,
+                'kills': kills,
+                'kills_air': kills_air,
+                'assists': assists,
+                'crits': crits,
+                'base_caps': base_caps
             })
 
         # --- Запись в Excel ---
@@ -654,7 +713,6 @@ class BattleAnalyzer:
 
         except Exception as e:
             print(f'❌ Ошибка в save_vehicle_stats - {e}')
-
 
 # 4 Окно Tkinter
 class WTApp:
