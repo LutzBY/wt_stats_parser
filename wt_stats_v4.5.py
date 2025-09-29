@@ -13,7 +13,7 @@ import json
 from PIL import Image, ImageTk
 
 # cd E:\PY\wt_stats_parser
-# pyinstaller --onefile --windowed wt_stats_v3.py
+# pyinstaller --onefile --windowed wt_stats_v4.5.py
 
 import getpass # для определения текущего пользователя позже убрать
 env = getpass.getuser()
@@ -99,6 +99,9 @@ def parse_battle_stats():
         # Исключаем ложные срабатывания (например, "Заработано", "Итого")
         if cleaned and not re.match(r'^[\[\]"]', cleaned) and len(cleaned) > 1:
             vehicles.add(cleaned)
+        
+        # Получение индекса был ли прем техника и сколько
+        is_prem_veh_used = analyzer.is_prem_veh_used(vehicles)
 
     vehicles = ", ".join(sorted(vehicles)) if vehicles else "Неизвестно"
 
@@ -133,7 +136,8 @@ def parse_battle_stats():
         'max_br': max_br,
         'br_country': br_country,
         'boosters_sl_percent': boosters_sl_percent,
-        'boosters_rp_percent': boosters_rp_percent
+        'boosters_rp_percent': boosters_rp_percent,
+        'is_prem_veh_used': is_prem_veh_used
     }
 
 # 2 Функция сохранения в эксель
@@ -143,7 +147,7 @@ def save_to_excel(data, xlsx_path):
         'session_id', 'vehicles', 'total_sl', 'total_frp', 'total_rp',
         'total_mission_points', 'result', 'mission', 'activity_percent', 
         'mission_time', 'battle_type', 'max_br', 'br_country', 
-        'boosters_sl_percent', 'boosters_rp_percent'
+        'boosters_sl_percent', 'boosters_rp_percent', 'is_prem_veh_used'
     ]
 
     try:
@@ -497,6 +501,18 @@ class BattleAnalyzer:
         'avg_act_no_boosters' : avg_act_no_boosters,
         'formatted_time_no_boosters' : formatted_time_no_boosters
         }
+    # 3.10 Проверка использовалась ли прем техника в бою
+    # Возвращает 0 если нет, 1 и более, если было 1 и более машин в списке
+    def is_prem_veh_used(self, vehicles):
+        is_prem = 0
+        for row in self.vehicles_rus:
+            name = row[1]
+            value = row[5]
+            if name in vehicles:
+                is_prem += value
+                print (name, value)
+        return is_prem
+
 
 # 4 Окно Tkinter
 class WTApp:
