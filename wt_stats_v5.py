@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import scrolledtext
+from tkinter import scrolledtext, messagebox
 import pyperclip
 import re
 import pandas as pd
@@ -20,13 +20,15 @@ env = getpass.getuser()
 
 # 0 Вводные
 # 0.1 Куда сохранять эксель
-xlsx_path = r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" if env == 'lutzb' else r"D:\data.xlsx"
+xlsx_path = r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" if env == 'lutzb' else r"D:\py\wt_stats\data.xlsx"
 # 0.2 Где лежит база техники
-bd_path = r"E:\PY\wt_stats_parser\res\vehicles_rus.json" if env == 'lutzb' else r"C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res\vehicles_rus.json"
+bd_path = r"E:\PY\wt_stats_parser\res\vehicles_rus.json" if env == 'lutzb' else r"D:\py\wt_stats\wt_stats_parser\res\vehicles_rus.json"
 # 0.3 Параметры расположения окна tkinter
 tkinter_geometry = (500, 300, 3965, 1050) if env == 'lutzb' else (500, 300, 1400, 725) # размер - ш, в, положение - ш, в (3520 + 1080 )
 # 0.4 Где лежат флажки
-res_loc = r"E:\PY\wt_stats_parser\res" if env == 'lutzb' else r'C:\Users\lutsevich\Desktop\py\wt_stats\wt_stats_parser\res'
+res_loc = r"E:\PY\wt_stats_parser\res" if env == 'lutzb' else r'D:\py\wt_stats\wt_stats_parser\res'
+# 0.5 Время запуска программы
+session_start_time = datetime.now()
 
 ##### временная функция дампа (см строку 43)
 def save_raw_report(text, file_path='report_dump.txt'):
@@ -153,7 +155,8 @@ def parse_battle_stats():
 
 # 2 Функция сохранения в эксель
 def save_to_excel(data, xlsx_path):
-    
+    global df_for_session
+
     columns = [
         'session_id', 'vehicles', 'total_sl', 'total_frp', 'total_rp',
         'total_mission_points', 'result', 'mission', 'activity_percent', 
@@ -177,6 +180,10 @@ def save_to_excel(data, xlsx_path):
     # Добавляем новую
     new_row = pd.DataFrame([data], columns=columns)
     df = pd.concat([df, new_row], ignore_index=True)
+
+    # Формируем второй датафрейм для finish_window
+    df_for_session = pd.DataFrame([data], columns=columns)
+    df_for_session = pd.concat([df_for_session, new_row], ignore_index=True) 
 
     # Сохраняем обратно
     with pd.ExcelWriter(xlsx_path, mode='a', engine='openpyxl', if_sheet_exists='replace') as writer:
@@ -713,6 +720,57 @@ class BattleAnalyzer:
 
         except Exception as e:
             print(f'❌ Ошибка в save_vehicle_stats - {e}')
+    
+    # 3.12 Окно на выходе из программы
+    def finish_window(self, df_for_session):
+        
+        # 3.12.1 Среднее время боя за сессию
+        mission_avg_time = df_for_session['mission_time'].mean()
+        td = pd.to_timedelta(mission_avg_time, unit='D')
+        hours = td.components.hours
+        minutes = td.components.minutes
+        seconds = td.components.seconds
+        mission_avg_time = f"{minutes:02d} мин, {seconds:02d} сек"
+
+        # 3.12.2 Длительность сессии
+        session_end_time = datetime.now()
+        session_total_time = session_end_time - session_start_time
+        session_total_time = session_total_time.total_seconds()
+        hours = int(session_total_time // 3600)
+        minutes = int((session_total_time % 3600) // 60)
+        session_total_time = f'{hours} ч, {minutes} мин'
+
+        # 3.12.3 Суммы по sl, rp, mp
+        session_total_sl = sum(df_for_session['total_sl'])
+        session_total_sl = f"{session_total_sl:_}".replace("_", " ")
+        session_total_rp = sum(df_for_session['total_frp'])
+        session_total_rp = f"{session_total_rp:_}".replace("_", " ")
+        session_total_mp = sum(df_for_session['total_mission_points'])
+        session_total_mp = f"{session_total_mp:_}".replace("_", " ")
+
+        # 3.12.4 Средние по sl, rp, mp
+        session_average_sl = f"{int(df_for_session['total_sl'].mean()):_}".replace("_", " ")
+        session_average_rp = f"{int(df_for_session['total_frp'].mean()):_}".replace("_", " ")
+        session_average_mp = f"{int(df_for_session['total_mission_points'].mean()):_}".replace("_", " ")
+
+        # 3.12.5 Винрейт
+        winrate = df_for_session['result'].value_counts()
+        winrate = round(winrate.get('Победа', 1) / winrate.sum() * 100, 1)
+
+        messagebox.showinfo(
+            title='Игровая сессия завершена',
+            message=f"""
+            Продлилась {session_total_time}, боев - {df_for_session.shape[0]}, побед - {winrate} %
+            Средняя продолжительность миссии - {mission_avg_time}
+            Заработано всего:
+            🐱 {session_total_sl} SL
+            💡 {session_total_rp} RP
+            🌐 {session_total_mp} MP
+            Заработано в среднем:
+            🐱 {session_average_sl} SL
+            💡 {session_average_rp} RP
+            🌐 {session_average_mp} MP 
+            """)
 
 # 4 Окно Tkinter
 class WTApp:
@@ -980,3 +1038,7 @@ if __name__ == "__main__":
     listener_thread.start()
 
     root.mainloop()
+    
+    # Выдача окна на закрытии программы
+    analyzer.finish_window(df_for_session)
+    
