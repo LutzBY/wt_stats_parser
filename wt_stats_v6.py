@@ -13,7 +13,7 @@ import json
 from PIL import Image, ImageTk
 
 # cd E:\PY\wt_stats_parser
-# pyinstaller --onefile --windowed wt_stats_v5.py
+# pyinstaller --onefile --windowed wt_stats_v6.py
 
 import getpass # для определения текущего пользователя позже убрать
 env = getpass.getuser()
@@ -29,6 +29,8 @@ tkinter_geometry = (500, 300, 3965, 1050) if env == 'lutzb' else (500, 300, 1400
 res_loc = r"E:\PY\wt_stats_parser\res" if env == 'lutzb' else r'D:\py\wt_stats\wt_stats_parser\res'
 # 0.5 Время запуска программы
 session_start_time = datetime.now()
+# 0.6 Датасет для SessionSummaryWindow
+df_for_session = pd.DataFrame()
 
 ##### временная функция дампа (см строку 43)
 def save_raw_report(text, file_path='report_dump.txt'):
@@ -155,7 +157,7 @@ def parse_battle_stats():
 
 # 2 Функция сохранения в эксель
 def save_to_excel(data, xlsx_path):
-    global df_for_session
+    global columns, df_for_session
 
     columns = [
         'session_id', 'vehicles', 'total_sl', 'total_frp', 'total_rp',
@@ -181,8 +183,7 @@ def save_to_excel(data, xlsx_path):
     new_row = pd.DataFrame([data], columns=columns)
     df = pd.concat([df, new_row], ignore_index=True)
 
-    # Формируем второй датафрейм для finish_window
-    df_for_session = pd.DataFrame([data], columns=columns)
+    # Дополняем второй датафрейм для finish_window
     df_for_session = pd.concat([df_for_session, new_row], ignore_index=True) 
 
     # Сохраняем обратно
@@ -721,58 +722,7 @@ class BattleAnalyzer:
         except Exception as e:
             print(f'❌ Ошибка в save_vehicle_stats - {e}')
     
-    # 3.12 Окно на выходе из программы
-    def finish_window(self, df_for_session):
-        
-        # 3.12.1 Среднее время боя за сессию
-        mission_avg_time = df_for_session['mission_time'].mean()
-        td = pd.to_timedelta(mission_avg_time, unit='D')
-        hours = td.components.hours
-        minutes = td.components.minutes
-        seconds = td.components.seconds
-        mission_avg_time = f"{minutes:02d} мин, {seconds:02d} сек"
-
-        # 3.12.2 Длительность сессии
-        session_end_time = datetime.now()
-        session_total_time = session_end_time - session_start_time
-        session_total_time = session_total_time.total_seconds()
-        hours = int(session_total_time // 3600)
-        minutes = int((session_total_time % 3600) // 60)
-        session_total_time = f'{hours} ч, {minutes} мин'
-
-        # 3.12.3 Суммы по sl, rp, mp
-        session_total_sl = sum(df_for_session['total_sl'])
-        session_total_sl = f"{session_total_sl:_}".replace("_", " ")
-        session_total_rp = sum(df_for_session['total_frp'])
-        session_total_rp = f"{session_total_rp:_}".replace("_", " ")
-        session_total_mp = sum(df_for_session['total_mission_points'])
-        session_total_mp = f"{session_total_mp:_}".replace("_", " ")
-
-        # 3.12.4 Средние по sl, rp, mp
-        session_average_sl = f"{int(df_for_session['total_sl'].mean()):_}".replace("_", " ")
-        session_average_rp = f"{int(df_for_session['total_frp'].mean()):_}".replace("_", " ")
-        session_average_mp = f"{int(df_for_session['total_mission_points'].mean()):_}".replace("_", " ")
-
-        # 3.12.5 Винрейт
-        winrate = df_for_session['result'].value_counts()
-        winrate = round(winrate.get('Победа', 1) / winrate.sum() * 100, 1)
-
-        messagebox.showinfo(
-            title='Игровая сессия завершена',
-            message=f"""
-            Продлилась {session_total_time}, боев - {df_for_session.shape[0]}, побед - {winrate} %
-            Средняя продолжительность миссии - {mission_avg_time}
-            Заработано всего:
-            🐱 {session_total_sl} SL
-            💡 {session_total_rp} RP
-            🌐 {session_total_mp} MP
-            Заработано в среднем:
-            🐱 {session_average_sl} SL
-            💡 {session_average_rp} RP
-            🌐 {session_average_mp} MP 
-            """)
-
-# 4 Окно Tkinter
+# 4 Основное рабочее окно Tkinter
 class WTApp:
     def __init__(self, root, tkinter_geometry):
         self.root = root
@@ -781,6 +731,7 @@ class WTApp:
         self.root.resizable(True, True)
         self.root.attributes('-topmost', True)
         self.root.attributes('-alpha', 0.75)
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing) # запуск окна SessionSummaryWindow по закрытию
 
         # Настройка сетки
         root.grid_rowconfigure(5, weight=1)  # растяжение для text_area
@@ -875,6 +826,7 @@ class WTApp:
 
         sys.stdout = TextRedirector(self.text_area)
 
+    # Столбцы таблички
     def create_stat_row(self, row, label_text):
         """Возвращает список из 5 Label, размещённых в stats_frame"""
         # Метка слева
@@ -901,6 +853,7 @@ class WTApp:
             labels.append(lbl)
         return labels
     
+    # Действия по кнопке "Записать" - наполнение заголовка и таблички, вызов save_to_excel
     def on_button_click(self):
         print("🔄 Обработка буфера обмена...")
         data = parse_battle_stats()
@@ -982,6 +935,97 @@ class WTApp:
         # --- Сохранение ---
         save_to_excel(data, xlsx_path)
         print("✅ Данные сохранены")
+    
+    # Создает наполнение и логику окна статистики
+    def on_closing(self):
+        if 'df_for_session' in globals() and not df_for_session.empty:
+
+            # Длительность сессии
+            session_end_time = datetime.now()
+            session_total_time = session_end_time - session_start_time
+            hours = int(session_total_time.total_seconds() // 3600)
+            minutes = int((session_total_time.total_seconds() % 3600) // 60)
+            session_total_time_str = f'{hours} ч, {minutes} мин'
+
+            # Среднее время боя за сессию
+            mission_avg_time = df_for_session['mission_time'].mean()
+            td = pd.to_timedelta(mission_avg_time, unit='D')
+            minutes_avg = td.components.minutes
+            seconds_avg = td.components.seconds
+            mission_avg_time_str = f"{minutes_avg:02d} мин, {seconds_avg:02d} сек"
+
+            # Суммы по sl, rp, mp
+            session_total_sl = f"{sum(df_for_session['total_sl']):_}".replace("_", " ")
+            session_total_rp = f"{sum(df_for_session['total_frp']):_}".replace("_", " ")
+            session_total_mp = f"{sum(df_for_session['total_mission_points']):_}".replace("_", " ")
+
+            # Средние по sl, rp, mp
+            session_average_sl = f"{int(df_for_session['total_sl'].mean()):_}".replace("_", " ")
+            session_average_rp = f"{int(df_for_session['total_frp'].mean()):_}".replace("_", " ")
+            session_average_mp = f"{int(df_for_session['total_mission_points'].mean()):_}".replace("_", " ")
+
+            # Винрейт
+            winrate = df_for_session['result'].value_counts()
+            winrate = round(winrate.get('Победа', 1) / winrate.sum() * 100, 1)
+
+            session_data = {
+                'session_total_time': session_total_time_str,
+                'battles_count': len(df_for_session),
+                'winrate': winrate,
+                'mission_avg_time': mission_avg_time_str,
+                'session_total_sl': session_total_sl,
+                'session_total_rp': session_total_rp,
+                'session_total_mp': session_total_mp,
+                'session_average_sl': session_average_sl,
+                'session_average_rp': session_average_rp,
+                'session_average_mp': session_average_mp
+            }
+            # Закрываем основное окно, открываем окно SessionSummaryWindow
+            self.root.destroy()
+            SessionSummaryWindow(tk.Tk(), session_data)
+        else:
+            self.root.destroy()
+
+# 4.1 Окно статистики по окончанию игровой сессии
+class SessionSummaryWindow:
+    def __init__(self, parent, session_data):
+        self.session_data = session_data
+        self.window = parent
+        self.window.title("Игровая сессия завершена")
+        self.window.geometry('%dx%d+%d+%d' % tkinter_geometry)
+        self.window.resizable(False, False)
+        self.window.attributes('-topmost', True)
+        self.window.attributes('-alpha', 0.75)
+        self.window.protocol("WM_DELETE_WINDOW", self.close)
+
+        self.create_widgets()
+
+    # Вид окошка
+    def create_widgets(self):
+        data = self.session_data
+
+        text = f"""
+Продлилась {data['session_total_time']}, боев - {data['battles_count']}, побед - {data['winrate']} %
+Средняя продолжительность миссии - {data['mission_avg_time']}
+
+Заработано всего:
+🐱 {data['session_total_sl']} SL
+💡 {data['session_total_rp']} RP
+🌐 {data['session_total_mp']} MP
+
+Заработано в среднем:
+🐱 {data['session_average_sl']} SL
+💡 {data['session_average_rp']} RP
+🌐 {data['session_average_mp']} MP
+        """.strip()
+
+        label = tk.Label(self.window, text=text, font=("Consolas", 11), justify="left")
+        label.pack(pady=20)
+
+    # Действия по крестику
+    def close(self):
+        self.window.destroy()
+        sys.exit()
 
 # 5 Забираем текст из print() для размещения его в окне ткинтер
 class TextRedirector:
@@ -1038,7 +1082,4 @@ if __name__ == "__main__":
     listener_thread.start()
 
     root.mainloop()
-    
-    # Выдача окна на закрытии программы
-    analyzer.finish_window(df_for_session)
     
