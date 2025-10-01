@@ -541,6 +541,11 @@ class BattleAnalyzer:
 
     # 3.11 - Анализатор по технике
     def save_vehicle_stats(self, imported_game_log, vehicles_set, boosters_sl_percent, boosters_rp_percent, session_id, result, xlsx_path):
+        
+        # Создаем хранилку для доступа к результатам по технике
+        global battle_data_vehicles
+        battle_data_vehicles = None
+
         normalized_log = imported_game_log.replace('\r\n', '\n').replace('\r', '\n')
         def extract_block(text, keywords):
             """
@@ -694,6 +699,8 @@ class BattleAnalyzer:
                 'crits': crits,
                 'base_caps': base_caps
             })
+        # Заполняем хранилку
+        battle_data_vehicles = rows
 
         # --- Запись в Excel ---
         if not rows:
@@ -730,7 +737,7 @@ class WTApp:
         root.geometry('%dx%d+%d+%d' % tkinter_geometry)
         self.root.resizable(True, True)
         self.root.attributes('-topmost', True)
-        self.root.attributes('-alpha', 0.75)
+        self.root.attributes('-alpha', 0.90)
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing) # запуск окна SessionSummaryWindow по закрытию
 
         # Настройка сетки
@@ -766,17 +773,26 @@ class WTApp:
             anchor="w"
         )
         self.info_label.grid(row=1, column=0, sticky='w', padx=10, pady=2)
-
+        
         # --- 2. Техника ---
-        self.vehicles_label = tk.Label(
+        self.vehicles_frame = tk.Frame(
+            root, 
+            bg=root.cget('bg'),
+            )
+        self.vehicles_frame.grid(row=2, column=0, sticky='w', padx=10, pady=2)
+
+        self.vehicles_text = tk.Text(
             root,
-            text="",
-            font=("Consolas", 10),
+            font=("Courier New", 10),
             fg="gray",
-            anchor="w",
-            wraplength=500
+            wrap=tk.WORD,
+            height=3,
+            state="normal",
+            bg=root.cget('bg'),
+            borderwidth=0,
+            highlightthickness=0
         )
-        self.vehicles_label.grid(row=2, column=0, sticky='w', padx=10, pady=2)
+        self.vehicles_text.grid(row=2, column=0, sticky='w', padx=10, pady=2)
 
         # --- 3. Таблица: текущие и средние значения ---
         self.stats_frame = tk.Frame(root, bd=1, relief="solid")
@@ -891,10 +907,60 @@ class WTApp:
         self.info_label.config(
             text=f"{battle_type} | BR {max_br} | {boosters_percent_formatted}"
         )
-
+        
         # --- 2. Техника ---
-        vehicles = data['vehicles']
-        self.vehicles_label.config(text=vehicles)
+
+        self.vehicles_text.delete(1.0, tk.END)
+        
+        # задаем конфиги
+        self.vehicles_text.tag_configure("gray", foreground="gray")
+        self.vehicles_text.tag_configure("orange", foreground="orange")
+        self.vehicles_text.tag_configure("green", foreground="green")
+        self.vehicles_text.tag_configure("orange", foreground="orange")
+        self.vehicles_text.tag_configure("accent", underline=True)
+        
+        # Задаем условия по значкам
+        top_sl = max(battle_data_vehicles, key=lambda x: x['sl_corrected'])
+        top_rp = max(battle_data_vehicles, key=lambda x: x['rp_corrected'])
+        top_mp = max(battle_data_vehicles, key=lambda x: x['mp'])
+        # сумма убийств, ассистов, баз и т.д.
+        top_usefulness = max(battle_data_vehicles, key=lambda x: x['kills_air'] + x['kills'] + x['assists'] + x['crits'] + x['base_caps'])
+        
+        for i, item in enumerate(battle_data_vehicles):
+            vehicle = item['vehicle']
+            
+            # Задаем цвет
+            if item['premium'] == 0:
+                color = 'gray'
+            elif item['premium'] == 1:
+                color = 'orange'
+            elif item['premium'] == 2:
+                color = 'green'
+            else:
+                color = 'gold'
+            
+            # Задаем правила для значков
+            # Если один собрал все критерии
+            if item == top_sl == top_rp == top_mp == top_usefulness:
+                self.vehicles_text.insert(tk.END, '🌟')
+            else: 
+                # Лучий по SL
+                if top_sl == item:
+                    self.vehicles_text.insert(tk.END, '🐱')
+                # Лучий по RP
+                if top_rp == item:
+                    self.vehicles_text.insert(tk.END, '💡')
+                # Лучий по MP
+                if top_mp == item:
+                    self.vehicles_text.insert(tk.END, '🌐')
+                if top_usefulness == item:
+                    self.vehicles_text.insert(tk.END, '💀')
+
+            # Записываем тестовое имя с цветом и добавляем запятую
+            self.vehicles_text.insert(tk.END, vehicle, color)
+            if i < len(battle_data_vehicles) - 1:
+                self.vehicles_text.insert(tk.END, " | ", "gray")
+        
 
         # --- 3. Таблица значений ---
         mp = data['total_mission_points']
