@@ -618,6 +618,17 @@ class BattleAnalyzer:
         crit_block    = extract_block(normalized_log, ['Критические', 'повреждения'])
         cap_block     = extract_block(normalized_log, ['Захват', 'зон'])
         game_block    = extract_block(normalized_log, ['Время', 'игры'])
+        
+        # --- Извлечение дублеров и смертей ---
+        def get_vehicles_from_line(normalized_log, header):
+            pattern = rf'^{header}:\s*(.+)$'
+            match = re.search(pattern, normalized_log, re.MULTILINE)
+            if match:
+                # Разбиваем по запятой, чистим пробелы и пустые значения
+                return set(v.strip() for v in match.group(1).split(',') if v.strip())
+            return set()
+        died_vehicles = get_vehicles_from_line(normalized_log, "Повреждённая техника")
+        doubles_vehicles = get_vehicles_from_line(normalized_log, "Потраченных машин-дублёров")
 
         rows = []
 
@@ -683,6 +694,16 @@ class BattleAnalyzer:
             crits = len(re.findall(rf'{re.escape(vehicle)}', crit_block, re.IGNORECASE)) if crit_block else 0
             base_caps = len(re.findall(rf'{re.escape(vehicle)}.*?\d+%', cap_block, re.IGNORECASE)) if cap_block else 0
 
+            # --- Был ли дублер? ---
+            doubler_used = False
+            if row[1] in doubles_vehicles:
+                doubler_used = True
+
+            # --- Была ли потеряна ли машина? ---
+            did_died = False
+            if row[1] in died_vehicles:
+                did_died = True
+
             rows.append({
                 'battle_id': session_id,
                 'result': result,
@@ -697,7 +718,9 @@ class BattleAnalyzer:
                 'kills_air': kills_air,
                 'assists': assists,
                 'crits': crits,
-                'base_caps': base_caps
+                'base_caps': base_caps,
+                'doubler_used': doubler_used, 
+                'did_died': did_died # У них логика такая - DD: умер 1 раз играл 1 раз, DU - умер 1 раз играл 2, DU+DD - умер и играл 2 раза
             })
         # Заполняем хранилку
         battle_data_vehicles = rows
