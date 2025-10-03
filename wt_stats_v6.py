@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import scrolledtext, messagebox
+from tkinter import scrolledtext
 import pyperclip
 import re
 import pandas as pd
@@ -137,6 +137,7 @@ def parse_battle_stats():
     )
 
     return {
+        'date': session_start_time,
         'session_id': session_id,
         'vehicles': vehicles,
         'total_sl': total_sl,
@@ -160,6 +161,7 @@ def save_to_excel(data, xlsx_path):
     global columns, df_for_session
 
     columns = [
+        'date',
         'session_id', 'vehicles', 'total_sl', 'total_frp', 'total_rp',
         'total_mission_points', 'result', 'mission', 'activity_percent', 
         'mission_time', 'battle_type', 'max_br', 'br_country', 
@@ -756,7 +758,7 @@ class BattleAnalyzer:
 class WTApp:
     def __init__(self, root, tkinter_geometry):
         self.root = root
-        self.root.title("WT Parser")
+        self.root.title(f"WT Parser ({session_start_time.strftime("%d %b, %H:%M")})")
         root.geometry('%dx%d+%d+%d' % tkinter_geometry)
         self.root.resizable(True, True)
         self.root.attributes('-topmost', True)
