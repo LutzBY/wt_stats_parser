@@ -1097,7 +1097,7 @@ class SessionSummaryWindow:
 
         text = f"""
 Продлилась {data['session_total_time']}, боев - {data['battles_count']}, побед - {data['winrate']} %
-Средняя продолжительность миссии - {data['mission_avg_time']}
+Средняя продолжительность миссии - {data['mission_avg_time']} (в бою {sum(data['mission_avg_time'])})
 
 Заработано всего:
 🐱 {data['session_total_sl']} SL
