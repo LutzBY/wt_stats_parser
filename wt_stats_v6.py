@@ -1045,6 +1045,13 @@ class WTApp:
             seconds_avg = td.components.seconds
             mission_avg_time_str = f"{minutes_avg:02d} мин, {seconds_avg:02d} сек"
 
+            # Сумма времени в бою
+            mission_cumulative_time = df_for_session['mission_time'].sum()
+            td = pd.to_timedelta(mission_cumulative_time, unit='D')
+            hours_cumulative = td.components.hours
+            minutes_cumulative = td.components.minutes
+            mission_cumulative_time_str = f'{hours_cumulative} ч, {minutes_cumulative} мин'
+
             # Суммы по sl, rp, mp
             session_total_sl = f"{sum(df_for_session['total_sl']):_}".replace("_", " ")
             session_total_rp = f"{sum(df_for_session['total_frp']):_}".replace("_", " ")
@@ -1064,6 +1071,7 @@ class WTApp:
                 'battles_count': len(df_for_session),
                 'winrate': winrate,
                 'mission_avg_time': mission_avg_time_str,
+                'mission_cumulative_time': mission_cumulative_time_str,
                 'session_total_sl': session_total_sl,
                 'session_total_rp': session_total_rp,
                 'session_total_mp': session_total_mp,
@@ -1097,7 +1105,8 @@ class SessionSummaryWindow:
 
         text = f"""
 Продлилась {data['session_total_time']}, боев - {data['battles_count']}, побед - {data['winrate']} %
-Средняя продолжительность миссии - {data['mission_avg_time']} (в бою {sum(data['mission_avg_time'])})
+Длительность нахождения в бою {data['mission_cumulative_time']}
+Средняя продолжительность миссии - {data['mission_avg_time']} 
 
 Заработано всего:
 🐱 {data['session_total_sl']} SL
