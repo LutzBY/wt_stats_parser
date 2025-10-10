@@ -1,5 +1,4 @@
 import tkinter as tk
-from tkinter import scrolledtext
 import pyperclip
 import re
 import pandas as pd
@@ -43,6 +42,10 @@ def save_raw_report(text, file_path='report_dump.txt'):
 
 # 1 Функция парсинга результатов
 def parse_battle_stats():
+    """
+    Функция получения отчета из буфера обмена и его парсинга с помощью re
+    """
+    
     imported_game_log = pyperclip.paste()
     if not imported_game_log.strip():
         print("❌ Буфер обмена пуст. Скопируй статистику боя и запусти скрипт снова.")
@@ -158,6 +161,9 @@ def parse_battle_stats():
 
 # 2 Функция сохранения в эксель
 def save_to_excel(data, xlsx_path):
+    """
+    Функция для записи словаря из parse_battle_stats и формирования df_for_session
+    """
     global columns, df_for_session
 
     columns = [
@@ -196,6 +202,9 @@ def save_to_excel(data, xlsx_path):
 
 # 3 Работа с БД бр-ов и видов техники, возврат страны, бр и вида боя
 class BattleAnalyzer:
+    """
+    Класс аналитических функций и методов для работы с БД техники
+    """
     def __init__(self, bd_path):
         """
         Загружает и подготавливает базу техники.
@@ -462,6 +471,9 @@ class BattleAnalyzer:
     
     # 3.9 Расчет средних из xlsx на основании данных миссии
     def get_averages_from_xlsx(self, battle_type, max_br, br_country):
+        """
+        Функция для WTApp, формирующая средние значения с разной группировкой для отображения в таблице в окне WTApp
+        """ 
         # Подгружаем эксель
         df = pd.read_excel(xlsx_path, engine='openpyxl', sheet_name='battles')
         
@@ -531,8 +543,11 @@ class BattleAnalyzer:
         }
     
     # 3.10 Проверка использовалась ли прем техника в бою
-    # Возвращает 0 если нет, 1 и более, если было 1 и более машин в списке
     def is_prem_veh_used(self, vehicles):
+        """
+        Принимает list по vehicles и проверяет по БД есть ли среди них премиумы
+        Возвращает число "количество использованных премиумов" - Возвращает 0 если нет, 1 и более, если было 1 и более машин в списке
+        """
         is_prem = 0
         for row in self.vehicles_rus:
             name = row[1]
@@ -543,7 +558,10 @@ class BattleAnalyzer:
 
     # 3.11 - Анализатор по технике
     def save_vehicle_stats(self, imported_game_log, vehicles_set, boosters_sl_percent, boosters_rp_percent, session_id, result, xlsx_path):
-        
+        """
+        Функция-аналог parse_battle_stats, но для каждой техники в бою отдельно. Полностью независимо обрабатывает лог и записывает на отдельный лист (vehicles) в xlsx.
+        Формирует также battle_data_vehicles для дальнейшего использования другими статистическими функциями
+        """
         # Создаем хранилку для доступа к результатам по технике
         global battle_data_vehicles
         battle_data_vehicles = None
@@ -756,6 +774,9 @@ class BattleAnalyzer:
     
     # 3.12 Функция получения данных для стартовой страницы
     def generate_data_for_start_page(self, xlsx_path):
+        """
+        Аналитическая функция для StartPageFrame. Открывает xlsx, считает показатели, отдает dict
+        """
         # 1. Открываем эксель
         with pd.ExcelFile(xlsx_path, engine='openpyxl') as xls:
         # Пытаемся прочитать лист 'battles'
@@ -830,33 +851,6 @@ class BattleAnalyzer:
         name_max_survivability = df_for_start_page.loc[i, 'vehicle']
         value_max_survivability = df_for_start_page.loc[i, 'survivability']
 
-        # Выводим в f-строке
-        print(f"""
-        {battle_count} боев
-        Топ 3 по SL:
-        1. {top3_sl[0][0]} ({round(top3_sl[0][1]):_})
-        2. {top3_sl[1][0]} ({round(top3_sl[1][1]):_})
-        3. {top3_sl[2][0]} ({round(top3_sl[2][1]):_})
-
-        Топ 3 по RP:
-        1. {top3_rp[0][0]} ({round(top3_rp[0][1]):_})
-        2. {top3_rp[1][0]} ({round(top3_rp[1][1]):_})
-        3. {top3_rp[2][0]} ({round(top3_rp[2][1]):_})
-
-        Топ 3 по MP:
-        1. {top3_mp[0][0]} ({round(top3_mp[0][1]):_})
-        2. {top3_mp[1][0]} ({round(top3_mp[1][1]):_})
-        3. {top3_mp[2][0]} ({round(top3_mp[2][1]):_})
-
-        Топы по:
-        Боям - {name_max_battle_count} ({value_max_battle_count} боев)
-        КД - {name_max_kd} ({value_max_kd})
-        Полезности - {name_max_objectives} ({round(value_max_objectives)} килов, критов, ассистов, баз)
-        Выживаемости - {name_max_survivability} ({value_max_survivability})
-
-
-        """.replace("_", " "))
-
         return {
             'top3_sl_name_1': top3_sl[0][0],
             'top3_sl_value_1': round(top3_sl[0][1]),
@@ -890,7 +884,7 @@ class BattleAnalyzer:
     # 3.13 Создание словаря для session summary window
     def generate_session_data(self, df_for_session):
         """
-        Принимает датафрейм с данными по сессии и возвращает словарь session_data
+        Аналитическая функция для SessionSummary. Принимает датафрейм с данными по сессии (df_for_session) и возвращает словарь session_data
         """
         session_data = None
         try:
@@ -981,6 +975,12 @@ class BattleAnalyzer:
 
 # 4.1 Основное рабочее окно Tkinter
 class WTApp (tk.Frame):
+    """
+    Основной фрейм для MainApp. Кнопка запуска, дублирующая ctrl+c. Таблица результатов, содержит конкретный бой, средние по такому же типу и бр, средние по такой же нации и типу и средние в целом по такому же типу боя с поправкой на бустеры.
+    Выводит название последней записанной миссии, информацию о БР, нации (и ее флаг), использованную технику.
+    Генерит заголовок вида флаг+результат+миссия, тип боя, бр, использованные бустеры. 
+    Подсвечивает премиум-технику (золотой текст) и сквадную (зеленый). Также присваивает имени техники значок, соответствующий ее эффективности в бою.
+    """
     def __init__(self, parent, on_close_callback, xlsx_path, bd_path, tkinter_geometry, *args, **kwargs):
 
         super().__init__(parent, *args, **kwargs) # Передаем *args, **kwargs для совместимости
@@ -1106,6 +1106,10 @@ class WTApp (tk.Frame):
     
     # Действия по кнопке "Записать" - наполнение заголовка и таблички, вызов save_to_excel
     def on_button_click(self):
+        """
+        Логика и расчеты наполнения фрейма WTApp. Генерит заголовок вида флаг+результат+миссия, тип боя, бр, использованные бустеры. 
+        Подсвечивает премиум-технику (золотой текст) и сквадную (зеленый). Также присваивает имени техники значок, соответствующий ее эффективности в бою
+        """
         print("🔄 Обработка буфера обмена...")
         data = parse_battle_stats()
         if not data:
@@ -1256,7 +1260,6 @@ class WTApp (tk.Frame):
 class SessionSummaryWindow (tk.Frame):
     """
     Фрейм для отображения итогов игровой сессии.
-    Предназначен для размещения внутри главного окна Tk (parent).
     """
     def __init__(self, parent, session_data, on_close_callback):
         """
@@ -1312,7 +1315,6 @@ class SessionSummaryWindow (tk.Frame):
 class StartPageFrame(tk.Frame):
     """
     Фрейм для отображения статистики по xlsx при запуске программы.
-    Предназначен для размещения внутри главного окна Tk (parent).
     """
     def __init__(self, parent, data_dict, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
@@ -1430,7 +1432,7 @@ class StartPageFrame(tk.Frame):
         self.data_dict = new_data_dict
         self.create_widgets()
 
-# Главное приложение (окно root tkinter)
+# 5 Главное приложение (окно root tkinter)
 class MainApp:
     """
     Управляет главным окном Tkinter и логикой переключения между видами.
