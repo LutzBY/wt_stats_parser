@@ -755,7 +755,7 @@ class BattleAnalyzer:
             print(f'❌ Ошибка в save_vehicle_stats - {e}')
     
     # 3.12 Функция получения данных для стартовой страницы
-    def generate_data_for_start_page(xlsx_path):
+    def generate_data_for_start_page(self, xlsx_path):
         # 1. Открываем эксель
         with pd.ExcelFile(xlsx_path, engine='openpyxl') as xls:
         # Пытаемся прочитать лист 'battles'
@@ -765,6 +765,9 @@ class BattleAnalyzer:
                 print('ошибка чтения стартового xlsx')
         
         # 2. Обрабатываем, готовим df_for_start_page со средними сгруппированный по vehicles
+
+        battle_count = df_for_start_page['battle_id'].nunique()
+
         # Добавляем столбец objectives
         df_for_start_page['objectives'] = (
             df_for_start_page['kills'] +
@@ -829,6 +832,7 @@ class BattleAnalyzer:
 
         # Выводим в f-строке
         print(f"""
+        {battle_count} боев
         Топ 3 по SL:
         1. {top3_sl[0][0]} ({round(top3_sl[0][1]):_})
         2. {top3_sl[1][0]} ({round(top3_sl[1][1]):_})
@@ -879,26 +883,118 @@ class BattleAnalyzer:
             'name_max_objectives': name_max_objectives,
             'value_max_objectives': round(value_max_objectives),
             'name_max_survivability': name_max_survivability,
-            'value_max_survivability': value_max_survivability
+            'value_max_survivability': value_max_survivability,
+            'battle_count': battle_count
         }
+
+    # 3.13 Создание словаря для session summary window
+    def generate_session_data(self, df_for_session):
+        """
+        Принимает датафрейм с данными по сессии и возвращает словарь session_data
+        """
+        session_data = None
+        try:
+            if 'df_for_session' in globals() and not df_for_session.empty:
+
+                # Длительность сессии
+                session_end_time = datetime.now()
+                session_total_time = session_end_time - session_start_time
+                hours = int(session_total_time.total_seconds() // 3600)
+                minutes = int((session_total_time.total_seconds() % 3600) // 60)
+                session_total_time_str = f'{hours} ч, {minutes} мин'
+
+                # Среднее время боя за сессию
+                mission_avg_time = df_for_session['mission_time'].mean()
+                td = pd.to_timedelta(mission_avg_time, unit='D')
+                minutes_avg = td.components.minutes
+                seconds_avg = td.components.seconds
+                mission_avg_time_str = f"{minutes_avg:02d} мин, {seconds_avg:02d} сек"
+
+                # Сумма времени в бою
+                mission_cumulative_time = df_for_session['mission_time'].sum()
+                td = pd.to_timedelta(mission_cumulative_time, unit='D')
+                hours_cumulative = td.components.hours
+                minutes_cumulative = td.components.minutes
+                mission_cumulative_time_str = f'{hours_cumulative} ч, {minutes_cumulative} мин'
+
+                # Суммы по sl, rp, mp
+                session_total_sl = f"{sum(df_for_session['total_sl']):_}".replace("_", " ")
+                session_total_rp = f"{sum(df_for_session['total_frp']):_}".replace("_", " ")
+                session_total_mp = f"{sum(df_for_session['total_mission_points']):_}".replace("_", " ")
+
+                # Средние по sl, rp, mp
+                session_average_sl = f"{int(df_for_session['total_sl'].mean()):_}".replace("_", " ")
+                session_average_rp = f"{int(df_for_session['total_frp'].mean()):_}".replace("_", " ")
+                session_average_mp = f"{int(df_for_session['total_mission_points'].mean()):_}".replace("_", " ")
+
+                # Винрейт
+                winrate = df_for_session['result'].value_counts()
+                winrate = round(winrate.get('Победа', 1) / winrate.sum() * 100, 1)
+
+                session_data = {
+                    'session_total_time': session_total_time_str,
+                    'battles_count': len(df_for_session),
+                    'winrate': winrate,
+                    'mission_avg_time': mission_avg_time_str,
+                    'mission_cumulative_time': mission_cumulative_time_str,
+                    'session_total_sl': session_total_sl,
+                    'session_total_rp': session_total_rp,
+                    'session_total_mp': session_total_mp,
+                    'session_average_sl': session_average_sl,
+                    'session_average_rp': session_average_rp,
+                    'session_average_mp': session_average_mp
+                }
+            else:
+                print("⚠️ Нет данных сессии (df_for_session пуст).")
+                session_data = {
+                    "session_total_time": "0 ч, 0 мин",
+                    "battles_count": 0,
+                    "winrate": "0%",
+                    "mission_avg_time": "0:00",
+                    "mission_cumulative_time": "0:00:00",
+                    "session_total_sl": "0",
+                    "session_total_rp": "0",
+                    "session_total_mp": "0",
+                    "session_average_sl": "0",
+                    "session_average_rp": "0",
+                    "session_average_mp": "0"
+                }
+        except Exception as e:
+            print(f"❌ Ошибка при подготовке данных сессии: {e}")
+            import traceback
+            traceback.print_exc()
+            session_data = {
+                "session_total_time": "Ошибка",
+                "battles_count": 0,
+                "winrate": "0%",
+                "mission_avg_time": "0:00",
+                "mission_cumulative_time": "0:00:00",
+                "session_total_sl": "0",
+                "session_total_rp": "0",
+                "session_total_mp": "0",
+                "session_average_sl": "0",
+                "session_average_rp": "0",
+                "session_average_mp": "0"
+            }
+
+        return session_data
 
 # 4.1 Основное рабочее окно Tkinter
 class WTApp (tk.Frame):
-    def __init__(self, root, tkinter_geometry):
-        self.root = root
-        self.root.title(f"WT Parser ({session_start_time.strftime("%d %b, %H:%M")})")
-        root.geometry('%dx%d+%d+%d' % tkinter_geometry)
-        self.root.resizable(True, True)
-        self.root.attributes('-topmost', True)
-        self.root.attributes('-alpha', 0.90)
-        self.root.protocol("WM_DELETE_WINDOW", self.on_closing) # запуск окна SessionSummaryWindow по закрытию
+    def __init__(self, parent, on_close_callback, xlsx_path, bd_path, tkinter_geometry, *args, **kwargs):
+
+        super().__init__(parent, *args, **kwargs) # Передаем *args, **kwargs для совместимости
+        self.parent = parent
+        self.on_close_callback = on_close_callback # НОВЫЙ ПАРАМЕТР
+        self.xlsx_path = xlsx_path
+        self.bd_path = bd_path # запуск окна SessionSummaryWindow по закрытию
 
         # Настройка сетки
-        root.grid_rowconfigure(5, weight=1)  # растяжение для text_area
-        root.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(5, weight=1)  # растяжение для text_area
+        self.grid_columnconfigure(0, weight=1)
 
         # --- 0. Заголовок: флаг + результат + миссия ---
-        self.header_frame = tk.Frame(root)
+        self.header_frame = tk.Frame(self)
         self.header_frame.grid(row=0, column=0, sticky='w', padx=10, pady=(10, 2))
 
         self.flag_label = tk.Label(
@@ -919,7 +1015,7 @@ class WTApp (tk.Frame):
 
         # --- 1. Инфо-строка: тип, БР, бустеры ---
         self.info_label = tk.Label(
-            root,
+            self,
             text="",
             font=("Segoe UI", 9),
             fg="black",
@@ -929,26 +1025,26 @@ class WTApp (tk.Frame):
         
         # --- 2. Техника ---
         self.vehicles_frame = tk.Frame(
-            root, 
-            bg=root.cget('bg'),
+            self, 
+            bg=self.cget('bg'),
             )
         self.vehicles_frame.grid(row=2, column=0, sticky='w', padx=10, pady=2)
 
         self.vehicles_text = tk.Text(
-            root,
+            self,
             font=("Courier New", 10),
             fg="gray",
             wrap=tk.WORD,
             height=3,
             state="normal",
-            bg=root.cget('bg'),
+            bg=self.cget('bg'),
             borderwidth=0,
             highlightthickness=0
         )
         self.vehicles_text.grid(row=2, column=0, sticky='w', padx=10, pady=2)
 
         # --- 3. Таблица: текущие и средние значения ---
-        self.stats_frame = tk.Frame(root, bd=1, relief="solid")
+        self.stats_frame = tk.Frame(self, bd=1, relief="solid")
         self.stats_frame.grid(row=3, column=0, sticky='ew', padx=10, pady=5)
 
         # Настройка колонок
@@ -974,26 +1070,12 @@ class WTApp (tk.Frame):
 
         # --- 4. Кнопка ---
         self.button = tk.Button(
-            root,
+            self,
             text="📝 Записать",
             font=("Arial", 11),
             command=self.on_button_click
         )
         self.button.grid(row=4, column=0, pady=5)
-
-        # --- 5. Лог (терминал) ---
-        self.text_area = scrolledtext.ScrolledText(
-            root,
-            wrap=tk.WORD,
-            font=("Consolas", 9),
-            state='disabled',
-            bg="white",
-            fg="black",
-            height=6
-        )
-        self.text_area.grid(row=5, column=0, padx=10, pady=(0, 10))
-
-        sys.stdout = TextRedirector(self.text_area)
 
     # Столбцы таблички
     def create_stat_row(self, row, label_text):
@@ -1157,80 +1239,47 @@ class WTApp (tk.Frame):
     
     # Создает наполнение и логику окна статистики
     def on_closing(self):
-        if 'df_for_session' in globals() and not df_for_session.empty:
-
-            # Длительность сессии
-            session_end_time = datetime.now()
-            session_total_time = session_end_time - session_start_time
-            hours = int(session_total_time.total_seconds() // 3600)
-            minutes = int((session_total_time.total_seconds() % 3600) // 60)
-            session_total_time_str = f'{hours} ч, {minutes} мин'
-
-            # Среднее время боя за сессию
-            mission_avg_time = df_for_session['mission_time'].mean()
-            td = pd.to_timedelta(mission_avg_time, unit='D')
-            minutes_avg = td.components.minutes
-            seconds_avg = td.components.seconds
-            mission_avg_time_str = f"{minutes_avg:02d} мин, {seconds_avg:02d} сек"
-
-            # Сумма времени в бою
-            mission_cumulative_time = df_for_session['mission_time'].sum()
-            td = pd.to_timedelta(mission_cumulative_time, unit='D')
-            hours_cumulative = td.components.hours
-            minutes_cumulative = td.components.minutes
-            mission_cumulative_time_str = f'{hours_cumulative} ч, {minutes_cumulative} мин'
-
-            # Суммы по sl, rp, mp
-            session_total_sl = f"{sum(df_for_session['total_sl']):_}".replace("_", " ")
-            session_total_rp = f"{sum(df_for_session['total_frp']):_}".replace("_", " ")
-            session_total_mp = f"{sum(df_for_session['total_mission_points']):_}".replace("_", " ")
-
-            # Средние по sl, rp, mp
-            session_average_sl = f"{int(df_for_session['total_sl'].mean()):_}".replace("_", " ")
-            session_average_rp = f"{int(df_for_session['total_frp'].mean()):_}".replace("_", " ")
-            session_average_mp = f"{int(df_for_session['total_mission_points'].mean()):_}".replace("_", " ")
-
-            # Винрейт
-            winrate = df_for_session['result'].value_counts()
-            winrate = round(winrate.get('Победа', 1) / winrate.sum() * 100, 1)
-
-            session_data = {
-                'session_total_time': session_total_time_str,
-                'battles_count': len(df_for_session),
-                'winrate': winrate,
-                'mission_avg_time': mission_avg_time_str,
-                'mission_cumulative_time': mission_cumulative_time_str,
-                'session_total_sl': session_total_sl,
-                'session_total_rp': session_total_rp,
-                'session_total_mp': session_total_mp,
-                'session_average_sl': session_average_sl,
-                'session_average_rp': session_average_rp,
-                'session_average_mp': session_average_mp
-            }
-            # Закрываем основное окно, открываем окно SessionSummaryWindow
-            self.root.destroy()
-            SessionSummaryWindow(tk.Tk(), session_data)
+        """
+        Логика, выполняемая при "закрытии" WTApp.
+        Вместо закрытия окна, уведомляет MainApp через коллбэк.
+        """
+        print("➡️ WTApp.on_closing() вызван. Подготавливаем данные сессии...")
+        
+            # --- Уведомляем MainApp ---
+        if self.on_close_callback:
+            print("📤 Вызов on_close_callback() для перехода к SessionSummary...")
+            self.on_close_callback(analyzer.generate_session_data(df_for_session)) # Передаём данные в коллбэк
         else:
-            self.root.destroy()
-
+            print("⚠️ on_close_callback не установлен!")
+            
 # 4.2 Окно статистики по окончанию игровой сессии
 class SessionSummaryWindow (tk.Frame):
-    def __init__(self, parent, session_data):
+    """
+    Фрейм для отображения итогов игровой сессии.
+    Предназначен для размещения внутри главного окна Tk (parent).
+    """
+    def __init__(self, parent, session_data, on_close_callback):
+        """
+        Инициализирует фрейм сессии.
+
+        :param parent: Главное окно Tk (передаётся из MainApp).
+        :param session_data: Словарь с данными итогов сессии.
+        :param on_close_callback: Функция, вызываемая при "закрытии" этого фрейма.
+                                   Должна быть предоставлена MainApp.
+        """
+        super().__init__(parent)
+        self.parent = parent
         self.session_data = session_data
-        self.window = parent
-        self.window.title("Игровая сессия завершена")
-        self.window.geometry('%dx%d+%d+%d' % tkinter_geometry)
-        self.window.resizable(False, False)
-        self.window.attributes('-topmost', True)
-        self.window.attributes('-alpha', 0.75)
-        self.window.protocol("WM_DELETE_WINDOW", self.close)
+        self.on_close_callback = on_close_callback
 
         self.create_widgets()
 
     # Вид окошка
     def create_widgets(self):
+        """Создаёт и размещает виджеты внутри фрейма."""
         data = self.session_data
 
+        # Формируем текст
         text = f"""
 Продлилась {data['session_total_time']}, боев - {data['battles_count']}, побед - {data['winrate']} %
 Длительность нахождения в бою {data['mission_cumulative_time']}
@@ -1246,17 +1295,25 @@ class SessionSummaryWindow (tk.Frame):
 💡 {data['session_average_rp']} RP
 🌐 {data['session_average_mp']} MP
         """.strip()
-
-        label = tk.Label(self.window, text=text, font=("Consolas", 11), justify="left")
+        
+        # Создаём и размещаем Label с текстом
+        label = tk.Label(self, text=text, font=("Consolas", 11), justify="left")
         label.pack(pady=20)
 
-    # Действия по крестику
-    def close(self):
-        self.window.destroy()
-        sys.exit()
+    def request_close(self):
+        """
+        Запрашивает закрытие у внешнего управляющего (MainApp).
+        Вызывается, например, по кнопке "Закрыть" внутри этого фрейма.
+        """
+        if self.on_close_callback:
+            self.on_close_callback()
 
 # 4.3 Окно стартовой статистики по запуску программы
 class StartPageFrame(tk.Frame):
+    """
+    Фрейм для отображения статистики по xlsx при запуске программы.
+    Предназначен для размещения внутри главного окна Tk (parent).
+    """
     def __init__(self, parent, data_dict, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.data_dict = data_dict or {}
@@ -1277,7 +1334,7 @@ class StartPageFrame(tk.Frame):
         small_font = ("Segoe UI", 10)
 
         # --- Заголовок ---
-        header_label = tk.Label(self, text="Топы по предыдущим боям", font=header_font, pady=10)
+        header_label = tk.Label(self, text=f"Топы по предыдущим боям ({self.data_dict['battle_count']})", font=header_font, pady=1)
         header_label.grid(row=0, column=0, columnspan=3, sticky="ew", padx=10)
 
         # --- Топ 3 по SL, RP, MP ---
@@ -1300,7 +1357,7 @@ class StartPageFrame(tk.Frame):
             else:
                 formatted_value = str(value)
             text_sl = f"{i+1}. {name} ({formatted_value})"
-            tk.Label(self, text=text_sl, font=value_font, anchor="w").grid(row=row, column=0, sticky="w", padx=(30, 5))
+            tk.Label(self, text=text_sl, font=value_font, anchor="w").grid(row=row, column=0, sticky="w", padx=(15, 5))
 
             # RP
             name_key = f'top3_rp_name_{i+1}'
@@ -1323,8 +1380,8 @@ class StartPageFrame(tk.Frame):
                 formatted_value = f"{value:_}".replace("_", " ")
             else:
                 formatted_value = str(value)
-            text_mp = f"{i+1}. {name} ({formatted_value})"
-            tk.Label(self, text=text_mp, font=value_font, anchor="w").grid(row=row, column=2, sticky="w", padx=(5, 30))
+            text_mp = f"""{i+1}. {name} ({formatted_value})"""
+            tk.Label(self, text=text_mp, font=value_font, anchor="w").grid(row=row, column=2, sticky="w", padx=(5, 15))
 
         # --- Топ 1 по другим параметрам ---
         next_row = 5 # 2 (заголовки) + 3 (топ-3) 
@@ -1358,7 +1415,7 @@ class StartPageFrame(tk.Frame):
                 formatted_val = str(val)
             display_text = f"{label_text}: {name} ({formatted_val})"
             
-            tk.Label(self, text=display_text, font=small_font, anchor="w").grid(row=next_row + i, column=0, columnspan=3, sticky="w", padx=30)
+            tk.Label(self, text=display_text, font=small_font, anchor="w").grid(row=next_row + i, column=0, columnspan=3, sticky="w", padx=15)
 
         # --- Конфигурация сетки ---
         # Растягиваем столбцы
@@ -1372,50 +1429,6 @@ class StartPageFrame(tk.Frame):
         """Обновляет данные и пересоздает виджеты."""
         self.data_dict = new_data_dict
         self.create_widgets()
-
-# 5 Забираем текст из print() для размещения его в окне ткинтер
-class TextRedirector:
-    def __init__(self, widget):
-        self.widget = widget
-
-    def write(self, text):
-        if text.strip():  # чтобы не вставлять пустые строки
-            self.widget.configure(state='normal')
-            self.widget.insert(tk.END, text)
-            self.widget.see(tk.END)
-            self.widget.configure(state='disabled')
-            self.widget.update_idletasks()  # обновление интерфейса
-
-    def flush(self):
-        pass  # требуется для совместимости с stdout
-
-# 6 Листенер для проверки запускать ли логику парсера - Проверяет: нажат ли Ctrl+C и активно ли окно War Thunder.
-def start_global_listener(app_instance):
-    def is_wt_active():
-        try:
-            w = gw.getActiveWindow()
-            if not w:
-                return False
-            title = w.title.lower()
-            keywords = ['war thunder', 'wt', 'aces']
-            return any(kw in title for kw in keywords)
-        except:
-            return False
-
-    print("🟢 Перехват Ctrl+C активирован...")
-
-    while True:
-        # Проверяем, что оба нажаты
-        if keyboard.is_pressed('ctrl') and keyboard.is_pressed('c'):
-            if is_wt_active():
-                print("\n✅ Ctrl+C в War Thunder — запускаем парсинг...")
-                time.sleep(0.4)
-                # Имитируем нажатие кнопки
-                app_instance.on_button_click()
-                # Ждём, пока клавиши отпущены
-                while keyboard.is_pressed('c'):
-                    time.sleep(0.1)
-        time.sleep(0.1)  # не грузим CPU
 
 # Главное приложение (окно root tkinter)
 class MainApp:
@@ -1452,7 +1465,10 @@ class MainApp:
         self.show_view("StartPage")
 
         # --- Запуск листенера в отдельном потоке ---
-        self.listener_thread = Thread(target=self._listen_for_ctrl_c, daemon=True)
+        self.listener_thread = Thread(
+            target=self._listen_for_ctrl_c, 
+            args=(self.root,),
+            daemon=True)
         self.listener_thread.start()
 
         # --- Протокол закрытия главного окна ---
@@ -1473,7 +1489,6 @@ class MainApp:
         try:
             if view_name == "StartPage":
                 # --- Стартовая страница ---
-                analyzer = BattleAnalyzer(self.bd_path) # Создаем анализатор
                 data_dict = analyzer.generate_data_for_start_page(self.xlsx_path)
                 self.current_view_frame = StartPageFrame(self.root, data_dict)
                 # Заголовок общий, можно не менять
@@ -1484,24 +1499,26 @@ class MainApp:
                 self.current_view_frame = WTApp(
                     parent=self.root,
                     on_close_callback=self.on_wtapp_close,
+                    tkinter_geometry=tkinter_geometry,
                     xlsx_path=self.xlsx_path,
                     bd_path=self.bd_path
                     # analyzer можно передать, если он нужен внутри WTApp
                 )
-                # Заголовок общий
+                self.root.protocol("WM_DELETE_WINDOW", self.on_wtapp_close)
 
             elif view_name == "SessionSummary":
+                                
+                for widget in self.root.winfo_children():
+                    widget.destroy()
+                         
                 # --- Окно итогов сессии ---
-                if data is None:
-                    # Заглушка, если данные не переданы
-                    data = {"session_total_time": "0 ч, 0 мин", "battles_count": 0, "winrate": "0%"}
-                # SessionSummaryWindow теперь должен быть tk.Frame
                 self.current_view_frame = SessionSummaryWindow(
                     parent=self.root,
                     session_data=data,
                     on_close_callback=self.on_summary_close
                 )
                 self.root.title("Игровая сессия завершена")
+                self.root.protocol("WM_DELETE_WINDOW", self.on_summary_close)
 
             # 3. Размещаем новый фрейм в окне
             if self.current_view_frame:
@@ -1521,17 +1538,7 @@ class MainApp:
         Переключает на SessionSummary.
         """
         print("➡️ WTApp закрывается, переключаемся на SessionSummary...")
-        # Здесь должна быть логика получения session_data
-        # Пока используем заглушку или данные из xlsx
-        try:
-            analyzer = BattleAnalyzer(self.bd_path)
-            session_data = analyzer.generate_data_for_start_page(self.xlsx_path)
-            # session_data должно быть словарем с итогами сессии
-            # session_data = get_actual_session_data() # Реализация зависит от логики
-        except:
-            session_data = {"session_total_time": "Неизвестно", "battles_count": 0, "winrate": "0%"}
-            
-        self.show_view("SessionSummary", data=session_data)
+        self.show_view("SessionSummary", data=analyzer.generate_session_data(df_for_session))
 
     def on_summary_close(self):
         """
@@ -1542,9 +1549,9 @@ class MainApp:
         self.on_closing() # Или просто self.root.destroy()
 
     # --- Логика листенера ---
-    def _listen_for_ctrl_c(self):
+    def _listen_for_ctrl_c(self, root):
         """
-        Фоновый поток для прослушивания Ctrl+C.
+        Фоновый поток для прослушивания Ctrl+C. (перенесен в mainapp)
         """
         def is_wt_active():
             try:
@@ -1561,13 +1568,21 @@ class MainApp:
         while True:
             if keyboard.is_pressed('ctrl') and keyboard.is_pressed('c'):
                 if is_wt_active():
-                    print("✅ Ctrl+C в War Thunder — запускаем парсинг...")
-                    # Переключаемся на WTApp
-                    # Используем after для потокобезопасности
-                    self.root.after(0, lambda: self.show_view("WTApp"))
-                    # Ждем отпускания клавиши 'c', чтобы не срабатывало дважды
-                    while keyboard.is_pressed('c'):
-                        time.sleep(0.05)
+                    # Для работы переключения окон по ctrl+c
+                    if self.current_view_name !='WTApp':
+                        print("✅ Ctrl+C в War Thunder — переключаюсь на WTApp")
+                        root.after(0, lambda: self.show_view("WTApp"))
+                        while self.current_view_name != "WTApp":
+                            time.sleep(0.05)
+
+                if isinstance(self.current_view_frame, WTApp):
+                    root.after(0, lambda: self.current_view_frame.on_button_click())
+                else:
+                    print("⚠️ Не удалось запустить WTApp")
+
+                # Ждем отпускания клавиши 'c', чтобы не срабатывало дважды
+                while keyboard.is_pressed('c'):
+                    time.sleep(0.05)
             time.sleep(0.1) # не грузим CPU
 
     # --- Запуск и закрытие ---
@@ -1585,12 +1600,6 @@ class MainApp:
 # 7 === ЗАПУСК ===
 if __name__ == "__main__":
     root = tk.Tk()
-    app = WTApp(root, tkinter_geometry)
-    analyzer = BattleAnalyzer(bd_path=bd_path)
-
-    # Запускаем перехват в фоне, передаём экземпляр app
-    listener_thread = Thread(target=start_global_listener, args=(app,), daemon=True)
-    listener_thread.start()
-
-    root.mainloop()
-    
+    analyzer = BattleAnalyzer(bd_path)
+    app = MainApp(root, tkinter_geometry, xlsx_path, bd_path)
+    app.run()
