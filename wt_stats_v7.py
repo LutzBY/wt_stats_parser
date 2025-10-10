@@ -45,7 +45,6 @@ def parse_battle_stats():
     """
     Функция получения отчета из буфера обмена и его парсинга с помощью re
     """
-    
     imported_game_log = pyperclip.paste()
     if not imported_game_log.strip():
         print("❌ Буфер обмена пуст. Скопируй статистику боя и запусти скрипт снова.")
@@ -1576,6 +1575,11 @@ class MainApp:
                         root.after(0, lambda: self.show_view("WTApp"))
                         while self.current_view_name != "WTApp":
                             time.sleep(0.05)
+                
+                # Дополнительно обновляем буфер обмена 
+                keyboard.press_and_release('ctrl')
+                keyboard.press_and_release('v')
+                time.sleep(0.3)
 
                 if isinstance(self.current_view_frame, WTApp):
                     root.after(0, lambda: self.current_view_frame.on_button_click())
