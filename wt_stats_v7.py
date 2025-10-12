@@ -1577,8 +1577,7 @@ class MainApp:
                             time.sleep(0.05)
                 
                 # Дополнительно обновляем буфер обмена 
-                keyboard.press_and_release('ctrl')
-                keyboard.press_and_release('v')
+                keyboard.press_and_release('ctrl', 'C')
                 time.sleep(0.3)
 
                 if isinstance(self.current_view_frame, WTApp):
