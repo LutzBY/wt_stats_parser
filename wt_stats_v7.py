@@ -9,6 +9,7 @@ import keyboard
 import pygetwindow as gw
 import time
 import json
+import os
 from PIL import Image, ImageTk
 
 # cd E:\PY\wt_stats_parser
@@ -20,13 +21,16 @@ env = getpass.getuser()
 # 0 Вводные
 import yaml
 
-with open('wt_stats_parser/config.yml') as file:
+# Получаем путь к файлу для подстановки путей
+dir_location = os.path.dirname(os.path.abspath(__file__))
+
+with open(f'{dir_location}\\config.yml') as file:
     config = yaml.safe_load(file)
 
 # 0.1 Куда сохранять эксель
 xlsx_path = config[env]['xlsx_data_location']
 # 0.2 Где лежит база техники
-bd_path = config[env]['database_location']
+bd_path = f'{dir_location}\\res\\vehicles_rus.json'
 # 0.3 Параметры расположения окна tkinter
 tkinter_geometry = (
     config[env]['tkinter_geometry']['width'],
@@ -34,7 +38,7 @@ tkinter_geometry = (
     config[env]['tkinter_geometry']['position_w'],
     config[env]['tkinter_geometry']['position_h'])
 # 0.4 Где лежат флажки
-res_loc = config[env]['res_loc']
+res_loc = f'{dir_location}\\res'
 # 0.5 Время запуска программы
 session_start_time = datetime.now()
 # 0.6 Датасет для SessionSummaryWindow
