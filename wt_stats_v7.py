@@ -24,7 +24,7 @@ import yaml
 # Получаем путь к файлу для подстановки путей
 dir_location = os.path.dirname(os.path.abspath(__file__))
 
-with open(f'{dir_location}\\config.yml') as file:
+with open(f'{dir_location}\\config.yml', encoding='utf-8') as file:
     config = yaml.safe_load(file)
 
 # 0.1 Куда сохранять эксель
