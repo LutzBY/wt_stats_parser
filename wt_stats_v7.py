@@ -18,14 +18,23 @@ import getpass # для определения текущего пользова
 env = getpass.getuser()
 
 # 0 Вводные
+import yaml
+
+with open('wt_stats_parser/config.yml') as file:
+    config = yaml.safe_load(file)
+
 # 0.1 Куда сохранять эксель
-xlsx_path = r"C:\Users\lutzb\Desktop\wt_stats\data.xlsx" if env == 'lutzb' else r"D:\py\wt_stats\data.xlsx"
+xlsx_path = config[env]['xlsx_data_location']
 # 0.2 Где лежит база техники
-bd_path = r"E:\PY\wt_stats_parser\res\vehicles_rus.json" if env == 'lutzb' else r"D:\py\wt_stats\wt_stats_parser\res\vehicles_rus.json"
+bd_path = config[env]['database_location']
 # 0.3 Параметры расположения окна tkinter
-tkinter_geometry = (500, 300, 3965, 1050) if env == 'lutzb' else (500, 300, 1400, 725) # размер - ш, в, положение - ш, в (3520 + 1080 )
+tkinter_geometry = (
+    config[env]['tkinter_geometry']['width'],
+    config[env]['tkinter_geometry']['height'],
+    config[env]['tkinter_geometry']['position_w'],
+    config[env]['tkinter_geometry']['position_h'])
 # 0.4 Где лежат флажки
-res_loc = r"E:\PY\wt_stats_parser\res" if env == 'lutzb' else r'D:\py\wt_stats\wt_stats_parser\res'
+res_loc = config[env]['res_loc']
 # 0.5 Время запуска программы
 session_start_time = datetime.now()
 # 0.6 Датасет для SessionSummaryWindow
