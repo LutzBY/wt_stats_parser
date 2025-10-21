@@ -11,34 +11,58 @@ import time
 import json
 import os
 from PIL import Image, ImageTk
-
-# cd E:\PY\wt_stats_parser
-# pyinstaller --onefile --windowed wt_stats_v6.py
-
-import getpass # для определения текущего пользователя позже убрать
-env = getpass.getuser()
-
-# 0 Вводные
 import yaml
 
-# Получаем путь к файлу для подстановки путей
-dir_location = os.path.dirname(os.path.abspath(__file__))
+# cd E:\PY\wt_stats_parser
+# pyinstaller --onefile --windowed --add-data "config.yml;." --add-data "res;res" wt_stats_v7.py
 
-with open(f'{dir_location}\\config.yml', encoding='utf-8') as file:
-    config = yaml.safe_load(file)
+# для определения текущего пользователя позже убрать
+env = os.getlogin()
 
+# 0 Вводные
+# пути
+def resource_path(relative_path):
+    """Получает правильный путь к ресурсу, работает как для .exe, так и для .py"""
+    try:
+        # PyInstaller создаёт временную папку, путь хранится в sys._MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        # Обычный запуск - используем директорию текущего файла
+        base_path = os.path.dirname(os.path.abspath(__file__))
+
+    return os.path.join(base_path, relative_path)
+
+# --- Загрузка конфигурации ---
+try:
+    # Пробуем загрузить config.yml из той же директории, где лежит скрипт
+    config_path = resource_path('config.yml')
+    
+    with open(config_path, encoding='utf-8') as file:
+        config = yaml.safe_load(file)
+        
+except Exception as e:
+    print(f"❌ Ошибка загрузки config.yml: {e}")
+    print("💡 Убедитесь, что config.yml лежит рядом с исполняемым файлом.")
+    input("Нажмите Enter для выхода...")
+    sys.exit(1)
+
+# --- Настройки из конфига ---
 # 0.1 Куда сохранять эксель
 xlsx_path = config[env]['xlsx_data_location']
-# 0.2 Где лежит база техники
-bd_path = f'{dir_location}\\res\\vehicles_rus.json'
+
+# 0.2 Где лежит база техники (тоже используем resource_path)
+bd_path = resource_path('res/vehicles_rus.json')
+
 # 0.3 Параметры расположения окна tkinter
 tkinter_geometry = (
     config[env]['tkinter_geometry']['width'],
     config[env]['tkinter_geometry']['height'],
     config[env]['tkinter_geometry']['position_w'],
-    config[env]['tkinter_geometry']['position_h'])
-# 0.4 Где лежат флажки
-res_loc = f'{dir_location}\\res'
+    config[env]['tkinter_geometry']['position_h']
+)
+# 0.4 Где лежат флажки (ресурсы)
+res_loc = resource_path('res')  # Путь к папке res
+
 # 0.5 Время запуска программы
 session_start_time = datetime.now()
 # 0.6 Датасет для SessionSummaryWindow
