@@ -70,6 +70,9 @@ df_for_session = pd.DataFrame()
 
 ##### временная функция дампа (см строку 43)
 def save_raw_report(text, file_path='report_dump.txt'):
+    """
+    Функиця сохраняет репорт в дамп
+    """
     with open(file_path, 'a', encoding='utf-8') as f:
         f.write(f"\n{'='*50}\n")
         f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -825,6 +828,10 @@ class BattleAnalyzer:
 
         battle_count = df_for_start_page['battle_id'].nunique()
 
+        # Заполняем did_died и doubler_used для корректного расчета
+        df_for_start_page['did_died'] = df_for_start_page['did_died'].fillna(1)
+        df_for_start_page['doubler_used'] = df_for_start_page['doubler_used'].fillna(0)
+
         # Добавляем столбец objectives
         df_for_start_page['objectives'] = (
             df_for_start_page['kills'] +
@@ -835,8 +842,8 @@ class BattleAnalyzer:
         )
         # Добавляем столбец k/d
         df_for_start_page['kd'] = (
-            (df_for_start_page['kills'] + df_for_start_page['kills_air'] ) /
-            (df_for_start_page['did_died'] + df_for_start_page['doubler_used'])
+            sum(df_for_start_page['kills'], df_for_start_page['kills_air']) / 
+            sum(df_for_start_page['did_died'], df_for_start_page['doubler_used'])
         )
 
         # Новый датафрейм через groupby по имени машинки
@@ -909,7 +916,7 @@ class BattleAnalyzer:
             'name_max_battle_count': name_max_battle_count,
             'value_max_battle_count': value_max_battle_count,
             'name_max_kd': name_max_kd,
-            'value_max_kd': value_max_kd,
+            'value_max_kd': round(value_max_kd, 2),
             'name_max_objectives': name_max_objectives,
             'value_max_objectives': round(value_max_objectives),
             'name_max_survivability': name_max_survivability,
@@ -1146,10 +1153,19 @@ class WTApp (tk.Frame):
         Логика и расчеты наполнения фрейма WTApp. Генерит заголовок вида флаг+результат+миссия, тип боя, бр, использованные бустеры. 
         Подсвечивает премиум-технику (золотой текст) и сквадную (зеленый). Также присваивает имени техники значок, соответствующий ее эффективности в бою
         """
+        # Запускаем парсер и выводим успех/не успех обработки
         print("🔄 Обработка буфера обмена...")
+        self.mission_label.config(text=f"🔄 Обработка лога...", fg="black")
+        flag_image = None
+        self.flag_label.image = flag_image
+        self.update_idletasks()
+
         data = parse_battle_stats()
+
         if not data:
             print("❌ Обработка не удалась.")
+            self.mission_label.config(text=f"❌ Обработка не удалась.", fg="red")
+            flag_image = None
             return
 
         # --- 0. Заголовок: флаг + миссия ---
@@ -1637,7 +1653,6 @@ class MainApp:
         print("🚪 Закрытие главного окна.")
         self.root.destroy() # Закрывает окно и завершает mainloop
         sys.exit() # Полностью завершает скрипт
-
 
 # 7 === ЗАПУСК ===
 if __name__ == "__main__":
