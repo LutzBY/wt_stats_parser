@@ -740,7 +740,7 @@ class BattleAnalyzer:
             corrected_rp = total_rp / (1 + rp_boost / 100) if rp_boost > 0 else total_rp
 
             # --- Премиум? ---
-            premium = False
+            premium = 0
             for row in self.vehicles_rus:
                 if row[1] == vehicle:
                     premium = row[5]
@@ -755,12 +755,12 @@ class BattleAnalyzer:
 
             # --- Был ли дублер? ---
             doubler_used = False
-            if row[1] in doubles_vehicles:
+            if vehicle in doubles_vehicles:
                 doubler_used = True
 
             # --- Была ли потеряна ли машина? ---
             did_died = False
-            if row[1] in died_vehicles:
+            if vehicle in died_vehicles:
                 did_died = True
 
             rows.append({
