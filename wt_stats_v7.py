@@ -1,3 +1,5 @@
+#### Версия 7.4 на 18.11.2025 ####
+
 import tkinter as tk
 import pyperclip
 import re
@@ -832,6 +834,13 @@ class BattleAnalyzer:
         df_for_start_page['did_died'] = df_for_start_page['did_died'].fillna(1)
         df_for_start_page['doubler_used'] = df_for_start_page['doubler_used'].fillna(0)
 
+        # Приводим к нормальным числовым значениям
+        df_for_start_page['sl_corrected'] = pd.to_numeric(df_for_start_page['sl_corrected'], downcast='float', errors='coerce')
+        df_for_start_page['rp_corrected'] = pd.to_numeric(df_for_start_page['rp_corrected'], downcast='float', errors='coerce')
+        df_for_start_page['mp'] = pd.to_numeric(df_for_start_page['mp'], downcast='float', errors='coerce')
+
+
+
         # Добавляем столбец objectives
         df_for_start_page['objectives'] = (
             df_for_start_page['kills'] +
@@ -845,6 +854,11 @@ class BattleAnalyzer:
             sum(df_for_start_page['kills'], df_for_start_page['kills_air']) / 
             sum(df_for_start_page['did_died'], df_for_start_page['doubler_used'])
         )
+
+        #Костыльная корректировка на использование на дублера (делим пополам если был дублер)
+        mask_for_doubler_correction = df_for_start_page['doubler_used'] == 1
+        columns_for_doubler_correction = ['sl_corrected', 'rp_corrected', 'mp']
+        df_for_start_page.loc[mask_for_doubler_correction, columns_for_doubler_correction] /= 2
 
         # Новый датафрейм через groupby по имени машинки
         df_for_start_page = df_for_start_page.groupby('vehicle', as_index=False).agg(
@@ -864,7 +878,7 @@ class BattleAnalyzer:
         )
 
         # Убираем технику, у которой менее 5 боев
-        df_for_start_page = df_for_start_page[df_for_start_page['battle_count'] >= 5]
+        df_for_start_page = df_for_start_page[df_for_start_page['battle_count'] >= 10]
 
         # 3. Рассчитываем нужные показатели
         # Получаем топ-3 по avg_sl
