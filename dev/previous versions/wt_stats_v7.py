@@ -1,6 +1,7 @@
-#### Версия 7.4 на 18.11.2025 ####
+#### Версия 8 на 01.12.2025 ####
 
 import tkinter as tk
+from tkinter import ttk, StringVar
 import pyperclip
 import re
 import pandas as pd
@@ -83,7 +84,7 @@ def save_raw_report(text, file_path='report_dump.txt'):
         f.write(f"{'-'*50}\n")
 
 # 1 Функция парсинга результатов
-def parse_battle_stats():
+def parse_battle_stats(tsb_key, br_variance):
     """
     Функция получения отчета из буфера обмена и его парсинга с помощью re
     """
@@ -165,6 +166,12 @@ def parse_battle_stats():
 
     # --- Запуск анализатора по строке vehicles - Получение бр, типа боя и страны ---
     battle_type, max_br, br_country = analyzer.analyze_battle(vehicles)
+    
+    # Чек на нажатие кнопки "Это TSB"
+    if tsb_key == True:
+        battle_type = 'Tank SB'
+    else:
+        battle_type = battle_type
 
     # --- Запуск анализатора по vehicles_set - Получение индекса был ли прем техника и сколько ---
     is_prem_veh_used = analyzer.is_prem_veh_used(vehicles_set)
@@ -180,6 +187,9 @@ def parse_battle_stats():
         xlsx_path
     )
 
+    # Получение br_bracket
+    br_bracket = br_variance
+    
     return {
         'date': session_start_time,
         'session_id': session_id,
@@ -197,7 +207,8 @@ def parse_battle_stats():
         'br_country': br_country,
         'boosters_sl_percent': boosters_sl_percent,
         'boosters_rp_percent': boosters_rp_percent,
-        'is_prem_veh_used': is_prem_veh_used
+        'is_prem_veh_used': is_prem_veh_used,
+        'br_bracket': br_bracket
     }
 
 # 2 Функция сохранения в эксель
@@ -212,7 +223,7 @@ def save_to_excel(data, xlsx_path):
         'session_id', 'vehicles', 'total_sl', 'total_frp', 'total_rp',
         'total_mission_points', 'result', 'mission', 'activity_percent', 
         'mission_time', 'battle_type', 'max_br', 'br_country', 
-        'boosters_sl_percent', 'boosters_rp_percent', 'is_prem_veh_used'
+        'boosters_sl_percent', 'boosters_rp_percent', 'is_prem_veh_used', 'br_bracket'
     ]
 
     try:
@@ -1050,6 +1061,13 @@ class WTApp (tk.Frame):
         self.grid_rowconfigure(5, weight=1)  # растяжение для text_area
         self.grid_columnconfigure(0, weight=1)
 
+        # Настройка сетки для controls_frame (кнопушки внизу)
+        self.controls_frame = tk.Frame(self)
+        self.controls_frame.grid(row=4, column=0, pady=5, padx=10, sticky='ew')
+        self.controls_frame.grid_columnconfigure(0, weight=1)  # Можно добавить вес, если нужно растянуть
+        self.controls_frame.grid_columnconfigure(1, weight=1)
+        self.controls_frame.grid_columnconfigure(2, weight=1)
+
         # --- 0. Заголовок: флаг + результат + миссия ---
         self.header_frame = tk.Frame(self)
         self.header_frame.grid(row=0, column=0, sticky='w', padx=10, pady=(10, 2))
@@ -1125,14 +1143,39 @@ class WTApp (tk.Frame):
         self.avg_nation_row = self.create_stat_row(3, "AVG (нация)")
         self.avg_no_boosters_row = self.create_stat_row(4, "Всех, без бустеров")
 
-        # --- 4. Кнопка ---
-        self.button = tk.Button(
-            self,
-            text="📝 Записать",
+        # --- 4. Кнопка "Записать" ---
+        self.button1 = tk.Button(
+            self.controls_frame,
+            text="📝 Записать след.",
             font=("Arial", 11),
             command=self.on_button_click
         )
-        self.button.grid(row=4, column=0, pady=5)
+        self.button1.grid(row=0, column=0, pady=5)
+
+        # --- 5. Кнопка "Это TSB" ---
+        self.tsb_key = tk.BooleanVar(value=False)
+
+        self.button2 = tk.Checkbutton(
+            self.controls_frame,
+            text="Tank SB",
+            font=("Arial", 11),
+            variable=self.tsb_key
+        )
+        self.button2.grid(row=0, column=1, pady=5)
+
+        # --- 6 Комбобокс для br_bracket
+        self.br_variance = StringVar()
+
+        self.br_combo = ttk.Combobox(
+            self.controls_frame,
+            textvariable=self.br_variance,
+            values = ('Full Downtier', 'Slight Downtier', 'Even', 'Slight Uptier', 'Full Uptier'),
+            state='readonly',
+            font=("Arial", 11),
+            # command=self.on_button_click
+        )
+        self.br_combo.grid(row=0, column=2, pady=5)
+        self.br_combo.set('Even')
 
     # Столбцы таблички
     def create_stat_row(self, row, label_text):
@@ -1174,7 +1217,10 @@ class WTApp (tk.Frame):
         self.flag_label.image = flag_image
         self.update_idletasks()
 
-        data = parse_battle_stats()
+        # Получаем значения кнопок TSB и BR и запускаем функцию
+        tsb_key = self.tsb_key.get()
+        br_variance = self.br_variance.get()
+        data = parse_battle_stats(tsb_key, br_variance)
 
         if not data:
             print("❌ Обработка не удалась.")
