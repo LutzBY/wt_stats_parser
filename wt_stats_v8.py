@@ -1169,7 +1169,7 @@ class WTApp (tk.Frame):
         self.br_combo = ttk.Combobox(
             self.controls_frame,
             textvariable=self.br_variance,
-            values = ('Full Downtier', 'Slight Downtier', 'Even', 'Slight Uptier', 'Full Uptier'),
+            values = ('Full downtier', 'Even', 'Slight Uptier (+0.3)', 'Major Uptier (+0.7)', 'Full Uptier (+1.0)'),
             state='readonly',
             font=("Arial", 11),
             # command=self.on_button_click
@@ -1256,7 +1256,7 @@ class WTApp (tk.Frame):
             boosters_percent_formatted = 'Без бустеров'
 
         self.info_label.config(
-            text=f"{battle_type} | BR {max_br} | {boosters_percent_formatted}"
+            text=f"{battle_type} | {max_br} BR ({br_variance}) | {boosters_percent_formatted}"
         )
         
         # --- 2. Техника ---
