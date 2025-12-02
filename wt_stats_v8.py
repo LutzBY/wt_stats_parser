@@ -1,4 +1,4 @@
-#### Версия 8 на 01.12.2025 ####
+#### Версия 8.1 на 02.12.2025 ####
 
 import tkinter as tk
 from tkinter import ttk, StringVar
@@ -993,6 +993,10 @@ class BattleAnalyzer:
                 winrate = df_for_session['result'].value_counts()
                 winrate = round(winrate.get('Победа', 1) / winrate.sum() * 100, 1)
 
+                # Топ N по вилке бр
+                session_br_brackets = df_for_session['br_bracket'].value_counts()
+                session_br_brackets = f', \n'.join(f"{idx} ({val})" for idx, val in session_br_brackets.items())
+
                 session_data = {
                     'session_total_time': session_total_time_str,
                     'battles_count': len(df_for_session),
@@ -1004,7 +1008,8 @@ class BattleAnalyzer:
                     'session_total_mp': session_total_mp,
                     'session_average_sl': session_average_sl,
                     'session_average_rp': session_average_rp,
-                    'session_average_mp': session_average_mp
+                    'session_average_mp': session_average_mp,
+                    'session_br_brackets': session_br_brackets
                 }
             else:
                 print("⚠️ Нет данных сессии (df_for_session пуст).")
@@ -1019,8 +1024,10 @@ class BattleAnalyzer:
                     "session_total_mp": "0",
                     "session_average_sl": "0",
                     "session_average_rp": "0",
-                    "session_average_mp": "0"
+                    "session_average_mp": "0",
+                    "session_br_brackets": "-"
                 }
+
         except Exception as e:
             print(f"❌ Ошибка при подготовке данных сессии: {e}")
             import traceback
@@ -1036,7 +1043,8 @@ class BattleAnalyzer:
                 "session_total_mp": "0",
                 "session_average_sl": "0",
                 "session_average_rp": "0",
-                "session_average_mp": "0"
+                "session_average_mp": "0",
+                "session_br_brackets": "-"
             }
 
         return session_data
@@ -1395,25 +1403,44 @@ class SessionSummaryWindow (tk.Frame):
         data = self.session_data
 
         # Формируем текст
-        text = f"""
+        text_session = f"""
 Продлилась {data['session_total_time']}, боев - {data['battles_count']}, побед - {data['winrate']} %
 Длительность нахождения в бою {data['mission_cumulative_time']}
 Средняя продолжительность миссии - {data['mission_avg_time']} 
-
+        """.strip()
+        
+        text_summary = f"""
 Заработано всего:
 🐱 {data['session_total_sl']} SL
 💡 {data['session_total_rp']} RP
 🌐 {data['session_total_mp']} MP
-
+        """.strip()
+        
+        text_averages = f"""
 Заработано в среднем:
 🐱 {data['session_average_sl']} SL
 💡 {data['session_average_rp']} RP
 🌐 {data['session_average_mp']} MP
         """.strip()
+
+        text_br_stat = f"""
+Статистика аптиров:
+{data['session_br_brackets']}
+        """.strip()
+
+        # Создаём и размещаем Label-ы с текстом
+        label_text_session = tk.Label(self, text=text_session, font=("Consolas", 11), justify="left")
+        label_text_session.grid(row=0, column=0, columnspan=2, pady=10)
+
+        label_text_summary = tk.Label(self, text=text_summary, font=("Consolas", 11), justify="left")
+        label_text_summary.grid(row=1, column=0, pady=10)
+
+        label_text_averages = tk.Label(self, text=text_averages, font=("Consolas", 11), justify="left")
+        label_text_averages.grid(row=1, column=1, pady=10)
+
+        label_text_br_stat = tk.Label(self, text=text_br_stat, font=("Consolas", 10), justify="left")
+        label_text_br_stat.grid(row=2, column=0, pady=5) #, columnspan=2
         
-        # Создаём и размещаем Label с текстом
-        label = tk.Label(self, text=text, font=("Consolas", 11), justify="left")
-        label.pack(pady=20)
 
     def request_close(self):
         """
@@ -1685,7 +1712,7 @@ class MainApp:
                     # Для работы переключения окон по ctrl+c
                     if self.current_view_name !='WTApp':
                         print("✅ Ctrl+C в War Thunder — переключаюсь на WTApp")
-                        root.after(0, lambda: self.show_view("WTApp"))
+                        root.after(0, lambda: self.show_view("WTApp")) #переключение и запуск парсинга по ctrl+c в первом окне
                         while self.current_view_name != "WTApp":
                             time.sleep(0.05)
                 
