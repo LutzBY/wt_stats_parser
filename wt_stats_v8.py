@@ -1,4 +1,4 @@
-#### Версия 8.1 на 02.12.2025 ####
+#### Версия 8.1 на 05.12.2025 ####
 
 import tkinter as tk
 from tkinter import ttk, StringVar
@@ -758,6 +758,8 @@ class BattleAnalyzer:
                 if row[1] == vehicle:
                     premium = row[5]
                     break
+            else:
+                premium = False
 
             # --- Подсчёт действий ---
             kills = len(re.findall(rf'{re.escape(vehicle)}', kill_block, re.IGNORECASE)) if kill_block else 0
@@ -1276,6 +1278,7 @@ class WTApp (tk.Frame):
         self.vehicles_text.tag_configure("orange", foreground="orange")
         self.vehicles_text.tag_configure("green", foreground="green")
         self.vehicles_text.tag_configure("orange", foreground="orange")
+        self.vehicles_text.tag_configure("red", foreground="red")
         self.vehicles_text.tag_configure("accent", underline=True)
         
         # Задаем условия по значкам
@@ -1289,14 +1292,17 @@ class WTApp (tk.Frame):
             vehicle = item['vehicle']
             
             # Задаем цвет
-            if item['premium'] == 0:
+            if item['premium'] is False:
+                color = 'red'
+            elif item['premium'] == 0:
                 color = 'gray'
             elif item['premium'] == 1:
                 color = 'orange'
             elif item['premium'] == 2:
                 color = 'green'
             else:
-                color = 'gold'
+                color = 'red'
+
             
             # Задаем правила для значков
             # Если один собрал все критерии
