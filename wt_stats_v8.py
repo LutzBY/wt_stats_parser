@@ -1179,13 +1179,13 @@ class WTApp (tk.Frame):
         self.br_combo = ttk.Combobox(
             self.controls_frame,
             textvariable=self.br_variance,
-            values = ('Full downtier', 'Even', 'Slight Uptier (+0.3)', 'Major Uptier (+0.7)', 'Full Uptier (+1.0)'),
+            values = ('Full downtier', 'n.a.', 'Slight Uptier (+0.3)', 'Major Uptier (+0.7)', 'Full Uptier (+1.0)'),
             state='readonly',
             font=("Arial", 11),
             # command=self.on_button_click
         )
         self.br_combo.grid(row=0, column=2, pady=5)
-        self.br_combo.set('Even')
+        self.br_combo.set('n.a.')
 
     # Столбцы таблички
     def create_stat_row(self, row, label_text):
