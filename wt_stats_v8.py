@@ -15,6 +15,7 @@ import json
 import os
 from PIL import Image, ImageTk
 import yaml
+import shutil
 
 # cd E:\PY\wt_stats_parser
 # pyinstaller --onefile --windowed --add-data "config.yml;." --add-data "res;res" wt_stats_v8.py
@@ -52,6 +53,7 @@ except Exception as e:
 # --- Настройки из конфига ---
 # 0.1 Куда сохранять эксель
 xlsx_path = config[env]['xlsx_data_location']
+backup_data_location = config[env]['backup_data_location']
 
 # 0.2 Где лежит база техники (тоже используем resource_path)
 bd_path = resource_path('res/vehicles_rus.json')
@@ -251,6 +253,24 @@ def save_to_excel(data, xlsx_path):
         df.to_excel(writer, sheet_name='battles', index=False)
 
     print(f"\n ✅ Обновлено: {data['session_id']}")
+
+# 2.1 Функция бекапа data.xlsx
+def save_backup (xlsx_path, backup_data_location):
+    """Пробует открыть метаданные data.xlsx и если оба шитса прочитались, то делает копию"""
+    try:
+        with pd.ExcelFile(xlsx_path, engine='openpyxl') as xls:
+            sheet_names = set(xls.sheet_names)
+            if 'battles' in sheet_names and 'vehicles' in sheet_names:
+                print('Battles и vehicles есть, делаем бекап')
+                shutil.copy2(xlsx_path, backup_data_location)
+                return 'Бекап выполнен успешно'
+            else:
+                print('Файл для бекапа не прочитался, нет листов')
+                return 'Файл для бекапа не прочитался, нет листов'
+    except Exception as e:
+        print('Файл для бекапа не прочитался:', e)
+        return 'Файл для бекапа не прочитался'
+    
 
 # 3 Работа с БД бр-ов и видов техники, возврат страны, бр и вида боя
 class BattleAnalyzer:
@@ -1406,13 +1426,19 @@ class SessionSummaryWindow (tk.Frame):
     # Вид окошка
     def create_widgets(self):
         """Создаёт и размещает виджеты внутри фрейма."""
+
+        #Вызов функции бекапа
+        backup_result_text = save_backup (xlsx_path, backup_data_location)
+        
+        # Получаем данные по сессии 
         data = self.session_data
 
         # Формируем текст
         text_session = f"""
 Продлилась {data['session_total_time']}, боев - {data['battles_count']}, побед - {data['winrate']} %
 Длительность нахождения в бою {data['mission_cumulative_time']}
-Средняя продолжительность миссии - {data['mission_avg_time']} 
+Средняя продолжительность миссии - {data['mission_avg_time']}
+{backup_result_text}
         """.strip()
         
         text_summary = f"""
