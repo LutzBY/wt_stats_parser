@@ -1,4 +1,4 @@
-#### Версия 8.1 на 05.12.2025 ####
+#### Версия 8.1 на 18.04.2026 ####
 
 import tkinter as tk
 from tkinter import ttk, StringVar
@@ -481,7 +481,7 @@ class BattleAnalyzer:
         #### !!!!!!!!!Изменить
         # Tank RB: есть наземная техника, не Air, BR < 10.7 или мало машин
         if types & NON_AIR_TYPES and not types.issubset(AIR_TYPES):
-            if max_br < 10.7 or num_vehicles <= 2:
+            if max_br < 12.0 or num_vehicles <= 2:
                 return "Tank RB"
 
         #### !!!!!!!!!Изменить
